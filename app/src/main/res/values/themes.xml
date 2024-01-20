@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Uart_blue" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowTranslucentStatus">true</item> <!-- 상태바 투명 설정 -->
+        <item name="android:windowBackground">@android:color/transparent</item> <!-- 윈도우 배경 투명 설정 -->
+        <item name="android:statusBarColor">@android:color/transparent</item> <!-- 상태바 색 투명 설정 -->
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <style name="Theme.Uart_blue" parent="Base.Theme.Uart_blue" />
+
+</resources>
