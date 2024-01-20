@@ -4,9 +4,11 @@ import android.annotation.SuppressLint;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -23,9 +25,10 @@ import java.util.List;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
-    private String selectedStorage = "";
+    private String selectedStorage = ""; //선택한 저장매체
     // PasswordManager 인스턴스 생성
-    PasswordManager passwordManager = new PasswordManager();
+    PasswordManager passwordManager = new PasswordManager(); //패스워드매니저 객체
+    String deviceNumber; //디바이스 코드
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @Override
@@ -51,35 +54,39 @@ public class OptionActivity extends AppCompatActivity {
 
         // SharedPreferences에서 선택된 저장 매체 복원
         SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-        String savedStorage = sharedPreferences.getString("selectedStorage", "");
+        deviceNumber = sharedPreferences.getString("deviceNumber", "");
+        // EditText에 저장된 디바이스 번호 설정
+        deviceNumberInput.setText(deviceNumber);
 
         // 패스워드 버튼 클릭 리스너 설정
         findViewById(R.id.passwordButton).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 패스워드 입력 다이얼로그 표시
-                final EditText passwordInput = new EditText(OptionActivity.this);
-                passwordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-                new AlertDialog.Builder(OptionActivity.this)
+                // 커스텀 레이아웃을 사용하여 다이얼로그 생성
+                LayoutInflater inflater = LayoutInflater.from(OptionActivity.this);
+                View dialogView = inflater.inflate(R.layout.password_dialog, null);
+                final EditText passwordInput = dialogView.findViewById(R.id.passwordInput);
+                AlertDialog dialog = new AlertDialog.Builder(OptionActivity.this)
                         .setTitle("Enter Password")
-                        .setView(passwordInput)
-                        .setPositiveButton("Confirm", new DialogInterface.OnClickListener() {
+                        .setView(dialogView)
+                        .setPositiveButton("확인", new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int whichButton) {
                                 String enteredPassword = passwordInput.getText().toString();
                                 if (passwordManager.verifyPassword(enteredPassword)) {
-                                    // 패스워드 일치, 디바이스 번호 저장 로직
+                                    // 패스워드 일치, 디바이스 번호 저장
                                     String deviceNumber = deviceNumberInput.getText().toString();
                                     saveDeviceNumber(deviceNumber); // 디바이스 번호 저장 메소드 구현 필요
                                 } else {
-                                    // 패스워드 불일치, 처리 로직
+                                    // 패스워드 불일치, 오류 메시지 다이얼로그 표시
+                                    new AlertDialog.Builder(OptionActivity.this)
+                                            .setTitle("Error")
+                                            .setMessage("올바른 비밀번호가 아닙니다")
+                                            .setPositiveButton("OK", null)
+                                            .show();
                                 }
                             }
                         })
-                        .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int whichButton) {
-                                // 취소 버튼 클릭시 처리 로직
-                            }
-                        })
+                        .setNegativeButton("취소", null)
                         .show();
             }
         });
@@ -178,6 +185,9 @@ public class OptionActivity extends AppCompatActivity {
     // 디바이스 번호 저장 메소드
     private void saveDeviceNumber(String deviceNumber) {
         // 디바이스 번호 저장 로직 구현
-        // 예: SharedPreferences 사용, 서버로 전송 등
+        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("deviceNumber", deviceNumber);
+        editor.apply();
     }
 }
