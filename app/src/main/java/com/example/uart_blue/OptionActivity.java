@@ -75,7 +75,14 @@ public class OptionActivity extends AppCompatActivity {
                                 if (passwordManager.verifyPassword(enteredPassword)) {
                                     // 패스워드 일치, 디바이스 번호 저장
                                     String deviceNumber = deviceNumberInput.getText().toString();
-                                    saveDeviceNumber(deviceNumber); // 디바이스 번호 저장 메소드 구현 필요
+                                    saveDeviceNumber(deviceNumber); // 디바이스 번호 저장 메소드 호출
+
+                                    // 패스워드 일치, 변경 성공 메시지 다이얼로그 표시
+                                    new AlertDialog.Builder(OptionActivity.this)
+                                            .setTitle("Success")
+                                            .setMessage("디바이스 ID가 "+deviceNumber+"로 변경되었습니다.")
+                                            .setPositiveButton("OK", null)
+                                            .show();
                                 } else {
                                     // 패스워드 불일치, 오류 메시지 다이얼로그 표시
                                     new AlertDialog.Builder(OptionActivity.this)

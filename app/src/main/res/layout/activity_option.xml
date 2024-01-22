@@ -67,7 +67,10 @@
                         app:layout_constraintBottom_toBottomOf="parent"
                         app:layout_constraintEnd_toStartOf="@+id/passwordButton"
                         app:layout_constraintTop_toTopOf="parent"
-                        tools:ignore="NotSibling">
+                        tools:ignore="NotSibling"
+                        app:counterEnabled="true"
+                        app:counterMaxLength="6"
+                        app:endIconMode="clear_text">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/DeviceEditText"
