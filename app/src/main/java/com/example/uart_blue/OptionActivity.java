@@ -28,9 +28,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.InvalidParameterException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -82,7 +84,7 @@ public class OptionActivity extends AppCompatActivity {
         //EditText editTextDataInput = findViewById(R.id.editTextDataInput);
         Button buttonSave = findViewById(R.id.btsave);
         Button buttonCancel = findViewById(R.id.btcancel);
-        Button buttonSelectDevice = findViewById(R.id.btselectDevice);
+        Button buttonSelectDevice    = findViewById(R.id.btselectDevice);
 
         Intent getIntent = getIntent();
         String storageInfo = getIntent.getStringExtra("storageInfo");
@@ -267,37 +269,35 @@ public class OptionActivity extends AppCompatActivity {
             String seoulTimeString = dateFormat.format(seoulTime);
             return deviceNumber + "-" + seoulTimeString + ".txt";
         }
-        @SuppressLint("RestrictedApi")
-        private void saveDataToFile(byte[] data) {
-            if (directoryUri == null) {
-                Log.e(LOG_TAG, "No directory selected.");
-                return;
-            }
-
-            try {
-                // 'data' 폴더를 찾거나 생성합니다.
-                DocumentFile pickedDir = DocumentFile.fromTreeUri(this, directoryUri);
-                DocumentFile dataDirectory = pickedDir.findFile("W.H.Data");
-                if (dataDirectory == null || !dataDirectory.exists()) {
-                    // 'data' 폴더가 없으면 새로 생성합니다.
-                    dataDirectory = pickedDir.createDirectory("W.H.Data");
-                }
-
-                // 파일 이름을 생성합니다.
-                String fileName = getFileName();
-
-                // 'data' 폴더 안에 파일을 생성합니다.
-                DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
-                try (OutputStream out = getContentResolver().openOutputStream(newFile.getUri())) {
-                    out.write(data);
-                    Log.d(LOG_TAG, "Saved data to " + fileName);
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, "Error writing to file: " + e.getMessage());
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "Error accessing directory: " + e.getMessage());
-            }
+    @SuppressLint("RestrictedApi")
+    private void saveDataToFile(String logEntries) {
+        if (directoryUri == null) {
+            Log.e(LOG_TAG, "No directory selected.");
+            return;
         }
+
+        try {
+            DocumentFile pickedDir = DocumentFile.fromTreeUri(this, directoryUri);
+            DocumentFile dataDirectory = pickedDir.findFile("W.H.Data");
+            if (dataDirectory == null || !dataDirectory.exists()) {
+                dataDirectory = pickedDir.createDirectory("W.H.Data");
+            }
+
+            String fileName = getFileName();
+            DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
+            try (OutputStream out = getContentResolver().openOutputStream(newFile.getUri())) {
+                out.write(logEntries.getBytes()); // 로그 엔트리를 파일에 씁니다.
+                Log.d(LOG_TAG, "Saved data to " + fileName);
+            } catch (IOException e) {
+                Log.e(LOG_TAG, "Error writing to file: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            Log.e(LOG_TAG, "Error accessing directory: " + e.getMessage());
+        }
+    }
+
+
+
 
     // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리를 합니다.
     @Override
@@ -312,17 +312,29 @@ public class OptionActivity extends AppCompatActivity {
         }
     }
     private class ReadThread extends Thread {
+        private int localCounter = 0; // 카운터를 클래스 변수로 선언
+        private StringBuilder logEntries = new StringBuilder(); // 1000개의 로그 엔트리를 저장할 StringBuilder
+
         @Override
         public void run() {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             while (!isInterrupted()) {
                 try {
                     if (mInputStream == null) return;
-                    int size = mInputStream.read(dataBuffer, dataCounter, dataBuffer.length - dataCounter);
+                    byte[] buffer = new byte[100]; // 각 패킷의 크기를 가정
+                    int size = mInputStream.read(buffer);
                     if (size > 0) {
-                        dataCounter += size;
-                        if (dataCounter >= 1000) {
-                            saveDataToFile(dataBuffer);
-                            dataCounter = 0;
+                        String timestamp = sdf.format(new Date()); // 현재 시간
+                        String[] dateTime = timestamp.split(" ");
+                        String[] date = dateTime[0].split("-");
+                        String[] time = dateTime[1].split(":");
+                        String logEntry = "(" + String.join(", ", date) + ", " + String.join(", ", time) + ", " + (++localCounter) + ", " + convertToDecimal(buffer, size) + ")";
+                        logEntries.append(logEntry + "\n");
+
+                        if (localCounter >= 1000) {
+                            saveDataToFile(logEntries.toString()); // 1000줄이 채워지면 파일에 저장
+                            logEntries.setLength(0); // 로그 엔트리 초기화
+                            localCounter = 0; // 카운터 초기화
                         }
                     }
                 } catch (IOException e) {
@@ -331,8 +343,20 @@ public class OptionActivity extends AppCompatActivity {
                 }
             }
         }
+
+        // 바이트 배열을 10진수 문자열로 변환
+        private String convertToDecimal(byte[] data, int size) {
+            StringBuilder decimalData = new StringBuilder();
+            for (int i = 0; i < size; i++) {
+                decimalData.append(data[i] & 0xFF).append(", ");
+            }
+            String result = decimalData.toString().trim();
+            return result.endsWith(",") ? result.substring(0, result.length() - 1) : result; // 마지막 쉼표 제거
+        }
     }
 
-    }
+
+
+}
 
 
