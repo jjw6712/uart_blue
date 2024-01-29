@@ -1,46 +1,88 @@
 package com.example.uart_blue;
 
+import static android.content.ContentValues.TAG;
+import static androidx.core.content.PackageManagerCompat.LOG_TAG;
+
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Build;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
-import android.text.InputType;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.CompoundButton;
 import android.widget.EditText;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.documentfile.provider.DocumentFile;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.InvalidParameterException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
+
+import android_serialport_api.SerialPort;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
+    private static final int STORAGE_PERMISSION_CODE = 100;
+    private static final int REQUEST_DIRECTORY_PICKER = 101;
     private String selectedStorage = ""; //선택한 저장매체
     // PasswordManager 인스턴스 생성
     PasswordManager passwordManager = new PasswordManager(); //패스워드매니저 객체
     String deviceNumber; //디바이스 코드
 
+    protected SerialPort mSerialPort;
+    protected OutputStream mOutputStream;
+    private InputStream mInputStream;
+    public ReadThread mReadThread;
+    public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
+
+    // Data buffer and counter
+    private final byte[] dataBuffer = new byte[1000];
+    private int dataCounter = 0;
+
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
+    @SuppressLint("RestrictedApi")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
+        checkStoragePermission();
+
+        try {
+            mSerialPort = getSerialPort("/dev/ttyS0", 115200);
+            mOutputStream = mSerialPort.getOutputStream();
+            mInputStream = mSerialPort.getInputStream();
+
+            mReadThread = new ReadThread();
+            mReadThread.start();
+        } catch (SecurityException | InvalidParameterException e) {
+            Log.e(LOG_TAG, e.getMessage());
+        }
+        setupButtons();
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
         // 컴포넌트 참조 초기화
         //EditText editTextDataInput = findViewById(R.id.editTextDataInput);
         Button buttonSave = findViewById(R.id.btsave);
         Button buttonCancel = findViewById(R.id.btcancel);
+        Button buttonSelectDevice = findViewById(R.id.btselectDevice);
 
         Intent getIntent = getIntent();
         String storageInfo = getIntent.getStringExtra("storageInfo");
@@ -50,7 +92,6 @@ public class OptionActivity extends AppCompatActivity {
         if (storageInfo == null || storageInfo.isEmpty()) {
             selectedStorage = "";
         }
-        setupRadioButtons(storageNames);
 
         // SharedPreferences에서 선택된 저장 매체 복원
         SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
@@ -128,8 +169,33 @@ public class OptionActivity extends AppCompatActivity {
                 finish();
             }
         });
-    }
 
+        buttonSelectDevice.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                startActivityForResult(intent, REQUEST_DIRECTORY_PICKER);
+            }
+        });
+    }
+    private void setupButtons() {
+        Button sendButton1 = findViewById(R.id.buttonSend1);
+        sendButton1.setOnClickListener(v -> sendToComputer('1'));
+
+        Button sendButton0 = findViewById(R.id.buttonSend0);
+        sendButton0.setOnClickListener(v -> sendToComputer('0'));
+    }
+    @SuppressLint("RestrictedApi")
+    private void sendToComputer(char data) {
+        byte[] sendData = new byte[1];
+        sendData[0] = (byte) data;
+        try {
+            mOutputStream.write(sendData);
+            Log.d(LOG_TAG, "Sent '" + data + "' to Computer");
+        } catch (IOException ex) {
+            Log.e(LOG_TAG, ex.getMessage());
+        }
+    }
     private void saveData(boolean isUSB1Checked) {
         // 실제 데이터 저장 로직
     }
@@ -155,38 +221,7 @@ public class OptionActivity extends AppCompatActivity {
         }
         return storageDetails;
     }
-    private void setupRadioButtons(List<String> storageNames) {
-        RadioGroup radioGroup = findViewById(R.id.radioGroupStorage);
-        radioGroup.removeAllViews();
 
-        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-        String savedStorage = sharedPreferences.getString("selectedStorage", "");
-
-        for (String name : storageNames) {
-            RadioButton radioButton = new RadioButton(this);
-            radioButton.setText(name);
-            radioButton.setId(View.generateViewId());
-
-            if (name.equals(savedStorage)) {
-                radioButton.setChecked(true);
-                selectedStorage = savedStorage;
-            }
-
-            radioButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) {
-                    selectedStorage = name;
-                }
-            });
-
-            radioGroup.addView(radioButton);
-        }
-
-        // 예외 처리: 선택된 저장매체가 현재 연결된 저장매체 목록에 없는 경우
-        if (!storageNames.contains(savedStorage)) {
-            selectedStorage = "";
-            radioGroup.clearCheck(); // 모든 라디오 버튼 체크 해제
-        }
-    }
 
 
     // 디바이스 번호 저장 메소드
@@ -197,4 +232,107 @@ public class OptionActivity extends AppCompatActivity {
         editor.putString("deviceNumber", deviceNumber);
         editor.apply();
     }
-}
+
+    private void checkStoragePermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                    STORAGE_PERMISSION_CODE);
+        }
+    }
+
+        @SuppressLint("RestrictedApi")
+        public SerialPort getSerialPort(String portNum, int baudRate) {
+            try {
+                if (mSerialPort == null) {
+                    mSerialPort = new SerialPort(new File(portNum), baudRate, 0);
+                }
+            } catch (Exception ex) {
+                Log.e(LOG_TAG, ex.getMessage());
+            }
+            return mSerialPort;
+        }
+        private String getFileName() {
+            // SharedPreferences에서 선택된 저장 매체 복원
+            SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+            deviceNumber = sharedPreferences.getString("deviceNumber", "");
+            // 서울 시간대 설정
+            TimeZone seoulTimeZone = TimeZone.getTimeZone("Asia/Seoul");
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            dateFormat.setTimeZone(seoulTimeZone);
+
+            // 현재 서울의 시간 얻기
+            Date seoulTime = new Date();
+            String seoulTimeString = dateFormat.format(seoulTime);
+            return deviceNumber + "-" + seoulTimeString + ".txt";
+        }
+        @SuppressLint("RestrictedApi")
+        private void saveDataToFile(byte[] data) {
+            if (directoryUri == null) {
+                Log.e(LOG_TAG, "No directory selected.");
+                return;
+            }
+
+            try {
+                // 'data' 폴더를 찾거나 생성합니다.
+                DocumentFile pickedDir = DocumentFile.fromTreeUri(this, directoryUri);
+                DocumentFile dataDirectory = pickedDir.findFile("W.H.Data");
+                if (dataDirectory == null || !dataDirectory.exists()) {
+                    // 'data' 폴더가 없으면 새로 생성합니다.
+                    dataDirectory = pickedDir.createDirectory("W.H.Data");
+                }
+
+                // 파일 이름을 생성합니다.
+                String fileName = getFileName();
+
+                // 'data' 폴더 안에 파일을 생성합니다.
+                DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
+                try (OutputStream out = getContentResolver().openOutputStream(newFile.getUri())) {
+                    out.write(data);
+                    Log.d(LOG_TAG, "Saved data to " + fileName);
+                } catch (IOException e) {
+                    Log.e(LOG_TAG, "Error writing to file: " + e.getMessage());
+                }
+            } catch (Exception e) {
+                Log.e(LOG_TAG, "Error accessing directory: " + e.getMessage());
+            }
+        }
+
+    // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리를 합니다.
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_DIRECTORY_PICKER && resultCode == Activity.RESULT_OK) {
+            directoryUri = data.getData();
+            // 선택된 디렉토리에 대한 권한을 영구적으로 유지합니다.
+            int takeFlags = data.getFlags();
+            takeFlags &= (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            getContentResolver().takePersistableUriPermission(directoryUri, takeFlags);
+        }
+    }
+    private class ReadThread extends Thread {
+        @Override
+        public void run() {
+            while (!isInterrupted()) {
+                try {
+                    if (mInputStream == null) return;
+                    int size = mInputStream.read(dataBuffer, dataCounter, dataBuffer.length - dataCounter);
+                    if (size > 0) {
+                        dataCounter += size;
+                        if (dataCounter >= 1000) {
+                            saveDataToFile(dataBuffer);
+                            dataCounter = 0;
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return;
+                }
+            }
+        }
+    }
+
+    }
+
+

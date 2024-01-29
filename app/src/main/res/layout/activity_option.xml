@@ -182,6 +182,20 @@
                             android:textStyle="bold"
                             android:inputType="text" />
                     </com.google.android.material.textfield.TextInputLayout>
+                    <Button
+                        android:id="@+id/buttonSend1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/WaterHammerTitle"
+                        android:layout_marginStart="500dp"
+                        android:text="동작"/>
+                    <Button
+                        android:id="@+id/buttonSend0"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/buttonSend1"
+                        android:layout_marginStart="500dp"
+                        android:text="정지"/>
                 </RelativeLayout>
             </androidx.cardview.widget.CardView>
 
@@ -217,51 +231,13 @@
                         android:textSize="25dp"
                         android:textStyle="bold" />
 
-                    <RadioGroup
-                        android:id="@+id/radioGroupStorage"
+                    <Button
+                        android:id="@+id/btselectDevice"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_below="@id/tvselectDevice"
-                        android:orientation="horizontal">
-
-                        <RadioButton
-                            android:id="@+id/radioButtonUSB1"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="USB 1"
-                            android:textSize="20dp"
-                            android:textStyle="bold"
-                            android:layout_marginStart="70dp"
-                            />
-
-                        <RadioButton
-                            android:id="@+id/radioButtonUSB2"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="USB 2"
-                            android:textSize="20dp"
-                            android:textStyle="bold"
-                            android:layout_marginStart="20dp"/>
-
-                        <RadioButton
-                            android:id="@+id/radioButtonTypeC"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Type C"
-                            android:textSize="20dp"
-                            android:textStyle="bold"
-                            android:layout_marginStart="20dp"/>
-
-                        <RadioButton
-                            android:id="@+id/radioButtonSDCard"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="SD Card"
-                            android:textSize="20dp"
-                            android:textStyle="bold"
-                            android:layout_marginStart="20dp"/>
-
-                    </RadioGroup>
+                        android:layout_below="@+id/tvselectDevice"
+                        android:layout_marginStart="250dp"
+                        android:text="저장매체 선택"/>
                 </RelativeLayout>
             </androidx.cardview.widget.CardView>
             <!-- Additional TCP/IP settings like subnet mask, gateway, etc. -->
