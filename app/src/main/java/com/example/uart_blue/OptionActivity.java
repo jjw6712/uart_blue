@@ -40,7 +40,6 @@ import android_serialport_api.SerialPort;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
-    private ReadThread mreadThread;
     private static final int STORAGE_PERMISSION_CODE = 100;
     private static final int REQUEST_DIRECTORY_PICKER = 101;
     private String selectedStorage = ""; //선택한 저장매체
@@ -166,11 +165,10 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 // 취소 로직, 입력 필드 초기화 등
-                cancelSettings();
                 finish();
             }
         });
-
+        //저장매체 클릭 리스너
         buttonSelectDevice.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -179,7 +177,7 @@ public class OptionActivity extends AppCompatActivity {
             }
         });
     }
-
+    //uart데이터 수신, 수신정지 버튼 클릭 리스너
     private void setupButtons() {
         Button sendButton1 = findViewById(R.id.buttonSend1);
         sendButton1.setOnClickListener(v -> sendToComputer('1'));
@@ -187,7 +185,7 @@ public class OptionActivity extends AppCompatActivity {
         Button sendButton0 = findViewById(R.id.buttonSend0);
         sendButton0.setOnClickListener(v -> sendToComputer('0'));
     }
-
+    //uart 신호 송신 메서드
     @SuppressLint("RestrictedApi")
     private void sendToComputer(char data) {
         byte[] sendData = new byte[1];
@@ -199,6 +197,7 @@ public class OptionActivity extends AppCompatActivity {
             Log.e(LOG_TAG, ex.getMessage());
         }
     }
+    //uart 데이터 읽기 스레드 호출 메서드
     private void startReadingData() {
         readThread = new ReadThread(mInputStream, new ReadThread.IDataReceiver() {
             @Override
@@ -224,15 +223,8 @@ public class OptionActivity extends AppCompatActivity {
         });
         readThread.start();
     }
-    private void saveData(boolean isUSB1Checked) {
-        // 실제 데이터 저장 로직
-    }
 
-    private void cancelSettings() {
-        // 설정 취소 로직
-    }
-
-    // ... TCP/IP 설정 저장 및 테스트를 위한 추가적인 메소드
+    //저장소및 용량 표시 메서드(미완성)
     private List<String> parseStorageInfo(String storageInfo) {
         List<String> storageDetails = new ArrayList<>();
         if (storageInfo != null && !storageInfo.isEmpty()) {
@@ -259,7 +251,7 @@ public class OptionActivity extends AppCompatActivity {
         editor.putString("deviceNumber", deviceNumber);
         editor.apply();
     }
-
+    //저장소 접근 권한 퍼미션
     private void checkStoragePermission() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -268,7 +260,7 @@ public class OptionActivity extends AppCompatActivity {
                     STORAGE_PERMISSION_CODE);
         }
     }
-
+    //시리얼 포트 가져오는 메서드
     @SuppressLint("RestrictedApi")
     public SerialPort getSerialPort(String portNum, int baudRate) {
         try {
@@ -280,7 +272,7 @@ public class OptionActivity extends AppCompatActivity {
         }
         return mSerialPort;
     }
-
+    //.text 파일명 디바이스명 + 대한민국 서울 시간.txt
     private String getFileName() {
         // SharedPreferences에서 선택된 저장 매체 복원
         SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
@@ -293,7 +285,7 @@ public class OptionActivity extends AppCompatActivity {
         String seoulTimeString = dateFormat.format(seoulTime);
         return deviceNumber + "-" + seoulTimeString + ".txt";
     }
-
+    //텍스트파일 기본 저장 폴더 생성 및 텍스트파일 생성 메서드
     @SuppressLint("RestrictedApi")
     private void saveDataToFile(String logEntries) {
         if (directoryUri == null) {
@@ -322,7 +314,7 @@ public class OptionActivity extends AppCompatActivity {
     }
 
 
-    // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리를 합니다.
+    // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);

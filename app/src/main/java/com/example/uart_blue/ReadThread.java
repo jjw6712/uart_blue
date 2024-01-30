@@ -2,15 +2,23 @@ package com.example.uart_blue;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.io.InputStream;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
 public class ReadThread extends Thread {
+    private final BlockingQueue<String> queue = new LinkedBlockingQueue<>();
+    private final SimpleDateFormat dateFormat;
+    private final InputStream mInputStream;
+    private final IDataReceiver dataReceiver;
+    private final byte STX = 0x02;
+    private final byte ETX = 0x03;
+    private final int BUFFER_SIZE = 14;
+    private byte[] buffer = new byte[BUFFER_SIZE];
     private int localCounter = 0;
-    private StringBuilder logEntries = new StringBuilder();
-    private SimpleDateFormat dateFormat;
-    private InputStream mInputStream;
-    private IDataReceiver dataReceiver;
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -30,43 +38,14 @@ public class ReadThread extends Thread {
         while (!isInterrupted()) {
             try {
                 if (mInputStream == null) return;
-
-                byte[] buffer = new byte[14]; // 14바이트 패킷 (새로운 필드 포함)
                 int size = mInputStream.read(buffer);
-                if (size == 14) { // 새로운 패킷 크기 확인
-                    String timestamp = dateFormat.format(new Date());
-
-                    // 패킷에서 데이터 추출 (바이너리 데이터)
-                    int pressure = ((buffer[2] & 0xFF) << 8) | (buffer[3] & 0xFF);
-                    int waterLevel = ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
-                    int humidity = buffer[6] & 0xFF; // 0 ~ 100
-                    int battery = buffer[7] & 0x07; // 0 ~ 7
-                    int drive = buffer[8] & 0x01; // 0 or 1
-                    int stop = buffer[9] & 0x01; // 0 or 1
-                    int wh = buffer[10] & 0x01; // 0 or 1
-                    int blackout = buffer[11] & 0x01; // 0 or 1
-
-
-                    String logEntry = String.format(
-                            "(%s, %d, %d, %d, %d%%, %d) (%d, %d, %d, %d)",
-                            timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
-                            ++localCounter, // 카운터
-                            pressure, // 수압
-                            waterLevel, // 수위
-                            humidity, // 습도
-                            battery, // 배터리 잔량
-                            drive, // 드라이브 상태
-                            stop, // 정지 상태
-                            wh, // WH 상태
-                            blackout // 블랙아웃 상태
-                    );
-
-                    logEntries.append(logEntry + "\n");
-
-                    if (localCounter >= 1000) {
-                        saveData(logEntries.toString());
-                        logEntries.setLength(0);
-                        localCounter = 0;
+                if (size == BUFFER_SIZE && buffer[0] == STX && buffer[BUFFER_SIZE - 2] == ETX) {
+                    // Checksum validation
+                    byte checksum = calculateChecksum(Arrays.copyOfRange(buffer, 0, BUFFER_SIZE - 1));
+                    if (checksum == buffer[BUFFER_SIZE - 1]) {
+                        processPacket();
+                    } else {
+                        handleError(new Exception("Checksum Mismatch"));
                     }
                 }
             } catch (IOException e) {
@@ -75,15 +54,43 @@ public class ReadThread extends Thread {
         }
     }
 
-    private void saveData(String data) {
-        if (dataReceiver != null) {
-            dataReceiver.onReceiveData(data);
+    private byte calculateChecksum(byte[] data) {
+        byte checksum = 0x00;
+        for (byte b : data) {
+            checksum ^= b;
         }
+        return checksum;
+    }
+
+    private void processPacket() {
+        String timestamp = dateFormat.format(new Date());
+        int pressure = ((buffer[2] & 0xFF) << 8) | (buffer[3] & 0xFF);
+        int waterLevel = ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
+        int humidity = buffer[6];
+        int battery = buffer[7];
+        int drive = buffer[8];
+        int stop = buffer[9];
+        int wh = buffer[10];
+        int blackout = buffer[11];
+
+        String logEntry = String.format(
+                "(%s, %d, %d, %d, %d%%, %d) (%d, %d, %d, %d)",
+                timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
+                ++localCounter, // 카운터
+                pressure, // 수압
+                waterLevel, // 수위
+                humidity, // 습도
+                battery, // 배터리 잔량
+                drive, // 드라이브 상태
+                stop, // 정지 상태
+                wh, // WH 상태
+                blackout // 블랙아웃 상태
+        );
+
+        dataReceiver.onReceiveData(logEntry);
     }
 
     private void handleError(Exception e) {
-        if (dataReceiver != null) {
-            dataReceiver.onError(e);
-        }
+        dataReceiver.onError(e);
     }
 }
