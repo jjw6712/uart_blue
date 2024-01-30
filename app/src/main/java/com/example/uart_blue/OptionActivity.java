@@ -28,11 +28,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.security.InvalidParameterException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +40,7 @@ import android_serialport_api.SerialPort;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
+    private ReadThread mreadThread;
     private static final int STORAGE_PERMISSION_CODE = 100;
     private static final int REQUEST_DIRECTORY_PICKER = 101;
     private String selectedStorage = ""; //선택한 저장매체
@@ -52,12 +51,12 @@ public class OptionActivity extends AppCompatActivity {
     protected SerialPort mSerialPort;
     protected OutputStream mOutputStream;
     private InputStream mInputStream;
-    public ReadThread mReadThread;
+    public ReadThread readThread;
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
 
-    // Data buffer and counter
-    private final byte[] dataBuffer = new byte[1000];
-    private int dataCounter = 0;
+    // 서울 시간대 설정
+    TimeZone seoulTimeZone = TimeZone.getTimeZone("Asia/Seoul");
+    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault());
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint("RestrictedApi")
@@ -72,8 +71,8 @@ public class OptionActivity extends AppCompatActivity {
             mOutputStream = mSerialPort.getOutputStream();
             mInputStream = mSerialPort.getInputStream();
 
-            mReadThread = new ReadThread();
-            mReadThread.start();
+            // ReadThread 시작
+            startReadingData();
         } catch (SecurityException | InvalidParameterException e) {
             Log.e(LOG_TAG, e.getMessage());
         }
@@ -84,11 +83,11 @@ public class OptionActivity extends AppCompatActivity {
         //EditText editTextDataInput = findViewById(R.id.editTextDataInput);
         Button buttonSave = findViewById(R.id.btsave);
         Button buttonCancel = findViewById(R.id.btcancel);
-        Button buttonSelectDevice    = findViewById(R.id.btselectDevice);
+        Button buttonSelectDevice = findViewById(R.id.btselectDevice);
 
         Intent getIntent = getIntent();
         String storageInfo = getIntent.getStringExtra("storageInfo");
-        Log.d(TAG, "MainActivity로부터 온 storageInfo: "+storageInfo);
+        Log.d(TAG, "MainActivity로부터 온 storageInfo: " + storageInfo);
         List<String> storageNames = parseStorageInfo(storageInfo);
         // 예외 처리: MainActivity로부터 전달된 저장매체 정보가 없는 경우
         if (storageInfo == null || storageInfo.isEmpty()) {
@@ -123,7 +122,7 @@ public class OptionActivity extends AppCompatActivity {
                                     // 패스워드 일치, 변경 성공 메시지 다이얼로그 표시
                                     new AlertDialog.Builder(OptionActivity.this)
                                             .setTitle("Success")
-                                            .setMessage("디바이스 ID가 "+deviceNumber+"로 변경되었습니다.")
+                                            .setMessage("디바이스 ID가 " + deviceNumber + "로 변경되었습니다.")
                                             .setPositiveButton("OK", null)
                                             .show();
                                 } else {
@@ -180,6 +179,7 @@ public class OptionActivity extends AppCompatActivity {
             }
         });
     }
+
     private void setupButtons() {
         Button sendButton1 = findViewById(R.id.buttonSend1);
         sendButton1.setOnClickListener(v -> sendToComputer('1'));
@@ -187,6 +187,7 @@ public class OptionActivity extends AppCompatActivity {
         Button sendButton0 = findViewById(R.id.buttonSend0);
         sendButton0.setOnClickListener(v -> sendToComputer('0'));
     }
+
     @SuppressLint("RestrictedApi")
     private void sendToComputer(char data) {
         byte[] sendData = new byte[1];
@@ -197,6 +198,31 @@ public class OptionActivity extends AppCompatActivity {
         } catch (IOException ex) {
             Log.e(LOG_TAG, ex.getMessage());
         }
+    }
+    private void startReadingData() {
+        readThread = new ReadThread(mInputStream, new ReadThread.IDataReceiver() {
+            @Override
+            public void onReceiveData(String data) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        saveDataToFile(data);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(Exception e) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        // 에러 처리 로직
+                        Log.e(TAG, "Error: ", e);
+                    }
+                });
+            }
+        });
+        readThread.start();
     }
     private void saveData(boolean isUSB1Checked) {
         // 실제 데이터 저장 로직
@@ -225,7 +251,6 @@ public class OptionActivity extends AppCompatActivity {
     }
 
 
-
     // 디바이스 번호 저장 메소드
     private void saveDeviceNumber(String deviceNumber) {
         // 디바이스 번호 저장 로직 구현
@@ -244,35 +269,35 @@ public class OptionActivity extends AppCompatActivity {
         }
     }
 
-        @SuppressLint("RestrictedApi")
-        public SerialPort getSerialPort(String portNum, int baudRate) {
-            try {
-                if (mSerialPort == null) {
-                    mSerialPort = new SerialPort(new File(portNum), baudRate, 0);
-                }
-            } catch (Exception ex) {
-                Log.e(LOG_TAG, ex.getMessage());
+    @SuppressLint("RestrictedApi")
+    public SerialPort getSerialPort(String portNum, int baudRate) {
+        try {
+            if (mSerialPort == null) {
+                mSerialPort = new SerialPort(new File(portNum), baudRate, 0);
             }
-            return mSerialPort;
+        } catch (Exception ex) {
+            Log.e(LOG_TAG, ex.getMessage());
         }
-        private String getFileName() {
-            // SharedPreferences에서 선택된 저장 매체 복원
-            SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-            deviceNumber = sharedPreferences.getString("deviceNumber", "");
-            // 서울 시간대 설정
-            TimeZone seoulTimeZone = TimeZone.getTimeZone("Asia/Seoul");
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-            dateFormat.setTimeZone(seoulTimeZone);
+        return mSerialPort;
+    }
 
-            // 현재 서울의 시간 얻기
-            Date seoulTime = new Date();
-            String seoulTimeString = dateFormat.format(seoulTime);
-            return deviceNumber + "-" + seoulTimeString + ".txt";
-        }
+    private String getFileName() {
+        // SharedPreferences에서 선택된 저장 매체 복원
+        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        deviceNumber = sharedPreferences.getString("deviceNumber", "");
+
+        dateFormat.setTimeZone(seoulTimeZone);
+
+        // 현재 서울의 시간 얻기
+        Date seoulTime = new Date();
+        String seoulTimeString = dateFormat.format(seoulTime);
+        return deviceNumber + "-" + seoulTimeString + ".txt";
+    }
+
     @SuppressLint("RestrictedApi")
     private void saveDataToFile(String logEntries) {
         if (directoryUri == null) {
-            Log.e(LOG_TAG, "No directory selected.");
+            Log.e(TAG, "No directory selected.");
             return;
         }
 
@@ -286,17 +311,15 @@ public class OptionActivity extends AppCompatActivity {
             String fileName = getFileName();
             DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
             try (OutputStream out = getContentResolver().openOutputStream(newFile.getUri())) {
-                out.write(logEntries.getBytes()); // 로그 엔트리를 파일에 씁니다.
-                Log.d(LOG_TAG, "Saved data to " + fileName);
+                out.write(logEntries.getBytes());
+                Log.d(TAG, "Saved data to " + fileName);
             } catch (IOException e) {
-                Log.e(LOG_TAG, "Error writing to file: " + e.getMessage());
+                Log.e(TAG, "Error writing to file: " + e.getMessage());
             }
         } catch (Exception e) {
-            Log.e(LOG_TAG, "Error accessing directory: " + e.getMessage());
+            Log.e(TAG, "Error accessing directory: " + e.getMessage());
         }
     }
-
-
 
 
     // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리를 합니다.
@@ -311,52 +334,6 @@ public class OptionActivity extends AppCompatActivity {
             getContentResolver().takePersistableUriPermission(directoryUri, takeFlags);
         }
     }
-    private class ReadThread extends Thread {
-        private int localCounter = 0; // 카운터를 클래스 변수로 선언
-        private StringBuilder logEntries = new StringBuilder(); // 1000개의 로그 엔트리를 저장할 StringBuilder
-
-        @Override
-        public void run() {
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            while (!isInterrupted()) {
-                try {
-                    if (mInputStream == null) return;
-                    byte[] buffer = new byte[100]; // 각 패킷의 크기를 가정
-                    int size = mInputStream.read(buffer);
-                    if (size > 0) {
-                        String timestamp = sdf.format(new Date()); // 현재 시간
-                        String[] dateTime = timestamp.split(" ");
-                        String[] date = dateTime[0].split("-");
-                        String[] time = dateTime[1].split(":");
-                        String logEntry = "(" + String.join(", ", date) + ", " + String.join(", ", time) + ", " + (++localCounter) + ", " + convertToDecimal(buffer, size) + ")";
-                        logEntries.append(logEntry + "\n");
-
-                        if (localCounter >= 1000) {
-                            saveDataToFile(logEntries.toString()); // 1000줄이 채워지면 파일에 저장
-                            logEntries.setLength(0); // 로그 엔트리 초기화
-                            localCounter = 0; // 카운터 초기화
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    return;
-                }
-            }
-        }
-
-        // 바이트 배열을 10진수 문자열로 변환
-        private String convertToDecimal(byte[] data, int size) {
-            StringBuilder decimalData = new StringBuilder();
-            for (int i = 0; i < size; i++) {
-                decimalData.append(data[i] & 0xFF).append(", ");
-            }
-            String result = decimalData.toString().trim();
-            return result.endsWith(",") ? result.substring(0, result.length() - 1) : result; // 마지막 쉼표 제거
-        }
-    }
-
-
-
 }
 
 
