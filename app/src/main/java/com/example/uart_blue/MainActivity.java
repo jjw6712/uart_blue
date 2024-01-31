@@ -36,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             updateUSBStorageInfo();
-            handler.postDelayed(this, 1000); // 10초마다 실행
+            //handler.postDelayed(this, 1000); // 10초마다 실행
         }
     };
     @Override
@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
         });
         Intent getintent = getIntent();
         SelectDevice = getintent.getStringExtra("selectedStorage");
-        Log.d(TAG, "optionactivity에서 온 저장매체: "+ SelectDevice);
+        //Log.d(TAG, "optionactivity에서 온 저장매체: "+ SelectDevice);
 
         textViewUSBStorageInfo = findViewById(R.id.textViewDatasizeValue); //저장소 용량tv
         handler.post(runnable); // 첫 실행 및 주기적 업데이트 시작
@@ -72,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
         for (StorageVolume volume : storageVolumes) {
             if (volume.isRemovable()) {
                 String description = volume.getDescription(this);
-                Log.d(TAG, "실제 물리 저장매체 정보: " + description);
+                //Log.d(TAG, "실제 물리 저장매체 정보: " + description);
 
                 File path = null;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
-        Log.d(TAG, "displayInfo: "+displayInfo);
+        //Log.d(TAG, "displayInfo: "+displayInfo);
         // Display either the selected device or all devices
         if (SelectDevice == null) {
             textViewUSBStorageInfo.setText("선택된 저장매체가 없습니다.");

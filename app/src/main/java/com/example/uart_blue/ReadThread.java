@@ -1,16 +1,28 @@
 package com.example.uart_blue;
 
+import android.util.Log;
+
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.io.InputStream;
 import java.util.TimeZone;
+import java.io.InputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
+
 public class ReadThread extends Thread {
+    private static final String TAG = "UART_Logging";
     private int localCounter = 0;
     private StringBuilder logEntries = new StringBuilder();
     private SimpleDateFormat dateFormat;
     private InputStream mInputStream;
     private IDataReceiver dataReceiver;
+    private static final int PACKET_SIZE = 14; // 14바이트 패킷 (새로운 필드 포함)
+    private static final byte STX = 0x02;
+    private static final byte ETX = 0x03;
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -31,21 +43,28 @@ public class ReadThread extends Thread {
             try {
                 if (mInputStream == null) return;
 
-                byte[] buffer = new byte[14]; // 14바이트 패킷 (새로운 필드 포함)
+                byte[] buffer = new byte[PACKET_SIZE];
                 int size = mInputStream.read(buffer);
-                if (size == 14) { // 새로운 패킷 크기 확인
+                if (size == PACKET_SIZE ) {
+                    Log.d(TAG, "Received Data: " + bytesToHex(buffer));
+                    // 체크섬 검증
+                    byte checksum = calculateChecksum(buffer);
+                    if (buffer[PACKET_SIZE - 1] != checksum) {
+                        System.out.println("체크섬 오류!");
+                        continue; // 체크섬 불일치, 패킷 무시
+                    }
+
                     String timestamp = dateFormat.format(new Date());
 
                     // 패킷에서 데이터 추출 (바이너리 데이터)
                     int pressure = ((buffer[2] & 0xFF) << 8) | (buffer[3] & 0xFF);
                     int waterLevel = ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
-                    int humidity = buffer[6] & 0xFF; // 0 ~ 100
-                    int battery = buffer[7] & 0x07; // 0 ~ 7
-                    int drive = buffer[8] & 0x01; // 0 or 1
-                    int stop = buffer[9] & 0x01; // 0 or 1
-                    int wh = buffer[10] & 0x01; // 0 or 1
-                    int blackout = buffer[11] & 0x01; // 0 or 1
-
+                    int humidity = buffer[6];
+                    int battery = buffer[7];
+                    int drive = buffer[8];
+                    int stop = buffer[9];
+                    int wh = buffer[10];
+                    int blackout = buffer[11];
 
                     String logEntry = String.format(
                             "(%s, %d, %d, %d, %d%%, %d) (%d, %d, %d, %d)",
@@ -73,8 +92,18 @@ public class ReadThread extends Thread {
                 handleError(e);
             }
         }
+        // 스레드가 중단될 때 남은 데이터를 저장
+        if (logEntries.length() > 0) {
+            saveData(logEntries.toString());
+        }
     }
-
+    private String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(String.format("%02X ", b));
+        }
+        return sb.toString();
+    }
     private void saveData(String data) {
         if (dataReceiver != null) {
             dataReceiver.onReceiveData(data);
@@ -86,4 +115,14 @@ public class ReadThread extends Thread {
             dataReceiver.onError(e);
         }
     }
+
+    private byte calculateChecksum(byte[] data) {
+        byte checksum = 0x00; // 체크섬 초기값을 0x00으로 설정
+        // STX부터 ETX까지 모든 바이트의 XOR 연산
+        for (int i = 0; i < data.length - 1; i++) {
+            checksum ^= data[i];
+        }
+        return checksum;
+    }
+
 }
