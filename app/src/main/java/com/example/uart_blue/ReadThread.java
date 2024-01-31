@@ -59,12 +59,12 @@ public class ReadThread extends Thread {
                     byte cmd = buffer[1];
                     int pressure = ((buffer[2] & 0xFF) << 8) | (buffer[3] & 0xFF);
                     int waterLevel = ((buffer[4] & 0xFF) << 8) | (buffer[5] & 0xFF);
-                    int humidity = buffer[6] & 0xFF;
-                    int battery = buffer[7] & 0xFF;
-                    int drive = buffer[8] & 0xFF;
-                    int stop = buffer[9] & 0xFF;
-                    int wh = buffer[10] & 0xFF;
-                    int blackout = buffer[11] & 0xFF;
+                    int humidity = buffer[6];
+                    int battery = buffer[7];
+                    int drive = buffer[8];
+                    int stop = buffer[9];
+                    int wh = buffer[10];
+                    int blackout = buffer[11];
                     byte etx = buffer[12];
                     byte checksum = buffer[13];
 
@@ -103,7 +103,7 @@ public class ReadThread extends Thread {
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
-            sb.append(String.format("0x%02X", b));
+            sb.append(String.format("0x%02X/ ", b));
         }
         return sb.toString().trim();
     }
@@ -120,7 +120,7 @@ public class ReadThread extends Thread {
     }
 
     private byte calculateChecksum(byte[] data) {
-        byte checksum = 0x00; // 체크섬 초기값을 0x00으로 설정
+        byte checksum = 0; // 체크섬 초기값을 0x00으로 설정
         // STX부터 ETX까지 모든 바이트의 XOR 연산
         for (int i = 0; i < data.length-1; i++) {
             checksum ^= data[i];
