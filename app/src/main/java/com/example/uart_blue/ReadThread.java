@@ -42,9 +42,10 @@ public class ReadThread extends Thread {
             try {
                 if (mInputStream == null) return;
                 byte[] buffer = new byte[PACKET_SIZE];
-                int size = mInputStream.read(buffer);
+                int size = mInputStream.read(buffer, 0, PACKET_SIZE); // PACKET_SIZE만큼 정확히 읽기
                 if (size == PACKET_SIZE ) {
                     Log.d(TAG, "Received Data: " + bytesToHex(buffer));
+                    Log.d(TAG, "size: " + size);
                     // 체크섬 검증
                     byte checksumcheck = calculateChecksum(buffer);
                     if (buffer[PACKET_SIZE - 1] != checksumcheck) {
