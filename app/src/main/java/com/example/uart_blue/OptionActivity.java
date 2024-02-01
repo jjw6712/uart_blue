@@ -40,7 +40,6 @@ import android_serialport_api.SerialPort;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
-    private ReadThread mreadThread;
     private static final int STORAGE_PERMISSION_CODE = 100;
     private static final int REQUEST_DIRECTORY_PICKER = 101;
     private String selectedStorage = ""; //선택한 저장매체
@@ -51,7 +50,8 @@ public class OptionActivity extends AppCompatActivity {
     protected SerialPort mSerialPort;
     protected OutputStream mOutputStream;
     private InputStream mInputStream;
-    public ReadThread readThread;
+    private ReadThread readThread;
+    private FileSaveThread fileSaveThread;
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
 
     // 서울 시간대 설정
@@ -70,12 +70,15 @@ public class OptionActivity extends AppCompatActivity {
             mSerialPort = getSerialPort("/dev/ttyS0", 115200);
             mOutputStream = mSerialPort.getOutputStream();
             mInputStream = mSerialPort.getInputStream();
-
+            // FileSaveThread 인스턴스 생성 및 시작
             // ReadThread 시작
             startReadingData();
         } catch (SecurityException | InvalidParameterException e) {
             Log.e(LOG_TAG, e.getMessage());
         }
+        fileSaveThread = new FileSaveThread(this);
+        fileSaveThread.start();
+
         setupButtons();
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
@@ -166,7 +169,6 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 // 취소 로직, 입력 필드 초기화 등
-                cancelSettings();
                 finish();
             }
         });
@@ -182,11 +184,23 @@ public class OptionActivity extends AppCompatActivity {
 
     private void setupButtons() {
         Button sendButton1 = findViewById(R.id.buttonSend1);
-        sendButton1.setOnClickListener(v -> sendToComputer('1'));
+        sendButton1.setOnClickListener(view -> {
+            // ReadThread와 FileSaveThread를 다시 시작합니다.
+            startReadingData();
+            // 데이터를 송신합니다.
+            sendToComputer('1');
+        });
 
         Button sendButton0 = findViewById(R.id.buttonSend0);
-        sendButton0.setOnClickListener(v -> sendToComputer('0'));
+        sendButton0.setOnClickListener(v -> {
+            sendToComputer('0');
+            // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
+            stopThreads();
+            // 입력 스트림 버퍼를 정리합니다.
+            clearInputStreamBuffer();
+        });
     }
+
 
     @SuppressLint("RestrictedApi")
     private void sendToComputer(char data) {
@@ -203,12 +217,11 @@ public class OptionActivity extends AppCompatActivity {
         readThread = new ReadThread(mInputStream, new ReadThread.IDataReceiver() {
             @Override
             public void onReceiveData(String data) {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        saveDataToFile(data);
-                    }
-                });
+                if (fileSaveThread != null) {
+                    fileSaveThread.addData(data);
+                } else {
+                    Log.d(TAG, "FileSaveThread is null, cannot add data");
+                }
             }
 
             @Override
@@ -221,15 +234,8 @@ public class OptionActivity extends AppCompatActivity {
                     }
                 });
             }
-        });
+        }, this);
         readThread.start();
-    }
-    private void saveData(boolean isUSB1Checked) {
-        // 실제 데이터 저장 로직
-    }
-
-    private void cancelSettings() {
-        // 설정 취소 로직
     }
 
     // ... TCP/IP 설정 저장 및 테스트를 위한 추가적인 메소드
@@ -281,47 +287,6 @@ public class OptionActivity extends AppCompatActivity {
         return mSerialPort;
     }
 
-    private String getFileName() {
-        // SharedPreferences에서 선택된 저장 매체 복원
-        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-        deviceNumber = sharedPreferences.getString("deviceNumber", "");
-
-        dateFormat.setTimeZone(seoulTimeZone);
-
-        // 현재 서울의 시간 얻기
-        Date seoulTime = new Date();
-        String seoulTimeString = dateFormat.format(seoulTime);
-        return deviceNumber + "-" + seoulTimeString + ".txt";
-    }
-
-    @SuppressLint("RestrictedApi")
-    private void saveDataToFile(String logEntries) {
-        if (directoryUri == null) {
-            Log.e(TAG, "No directory selected.");
-            return;
-        }
-
-        try {
-            DocumentFile pickedDir = DocumentFile.fromTreeUri(this, directoryUri);
-            DocumentFile dataDirectory = pickedDir.findFile("W.H.Data");
-            if (dataDirectory == null || !dataDirectory.exists()) {
-                dataDirectory = pickedDir.createDirectory("W.H.Data");
-            }
-
-            String fileName = getFileName();
-            DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
-            try (OutputStream out = getContentResolver().openOutputStream(newFile.getUri())) {
-                out.write(logEntries.getBytes());
-                Log.d(TAG, "Saved data to " + fileName);
-            } catch (IOException e) {
-                Log.e(TAG, "Error writing to file: " + e.getMessage());
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error accessing directory: " + e.getMessage());
-        }
-    }
-
-
     // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리를 합니다.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -332,8 +297,48 @@ public class OptionActivity extends AppCompatActivity {
             int takeFlags = data.getFlags();
             takeFlags &= (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             getContentResolver().takePersistableUriPermission(directoryUri, takeFlags);
+            SharedPreferences prefs = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("directoryUri", String.valueOf(directoryUri));
+            editor.apply();
         }
     }
+
+    // 시리얼 포트를 닫는 메소드
+    private void closeSerialPort() {
+        if (mSerialPort != null) {
+            mSerialPort.close();
+            mSerialPort = null;
+            Log.d(TAG, "Serial port closed");
+        }
+    }
+
+    // ReadThread와 FileSaveThread를 정지하는 메소드
+    private void stopThreads() {
+        if (readThread != null) {
+            readThread.interrupt();
+            readThread = null;
+        }
+        if (fileSaveThread != null) {
+            fileSaveThread.stopSaving();
+            fileSaveThread.interrupt();
+            fileSaveThread = null;
+        }
+        Log.d(TAG, "ReadThread and FileSaveThread stopped");
+    }
+    private void clearInputStreamBuffer() {
+        if (mInputStream != null) {
+            try {
+                while (mInputStream.available() > 0) {
+                    // 사용하지 않는 데이터를 읽어서 버퍼를 비웁니다.
+                    mInputStream.read();
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Failed to clear input stream buffer: " + e.getMessage());
+            }
+        }
+    }
+
 }
 
 
