@@ -32,11 +32,38 @@ public class MainActivity extends AppCompatActivity {
     private TextView textViewUSBStorageInfo;
     private ImageButton buttonOption;
     private final Handler handler = new Handler();
+    private TextView textViewWHCounterValue;
+    private TextView textViewHuminityValue;
+    private TextView textViewInnerBaterryValue;
+    private TextView textViewEternalPowerValue;
     private final Runnable runnable = new Runnable() {
         @Override
         public void run() {
             updateUSBStorageInfo();
             //handler.postDelayed(this, 1000); // 10초마다 실행
+        }
+    };
+
+    // BroadcastReceiver 정의
+    private final BroadcastReceiver updateUIReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            // Intent에서 데이터를 추출합니다.
+            int wh = intent.getIntExtra("wh", 0);
+            int humidity = intent.getIntExtra("humidity", 0);
+            int battery = intent.getIntExtra("battery", 0);
+            int blackout = intent.getIntExtra("blackout", 0);
+
+            // 추출된 데이터를 UI에 반영합니다.
+            TextView textViewWHCounterValue = findViewById(R.id.textViewWHCounterValue);
+            TextView textViewHumidityValue = findViewById(R.id.textViewHuminityValue);
+            TextView textViewInnerBatteryValue = findViewById(R.id.textViewInnerBaterryValue);
+            TextView textViewEternalPowerValue = findViewById(R.id.textViewEternalPowerValue);
+
+            textViewWHCounterValue.setText(String.valueOf(wh));
+            textViewHumidityValue.setText(String.format("%d%%", humidity));
+            textViewInnerBatteryValue.setText(String.format("%d", battery));
+            textViewEternalPowerValue.setText(blackout == 0 ? "ON" : "OFF");
         }
     };
     @Override
@@ -45,7 +72,10 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         buttonOption = findViewById(R.id.buttonOption);
-
+        // BroadcastReceiver 등록
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("com.example.uart_blue.ACTION_UPDATE_UI");
+        registerReceiver(updateUIReceiver, filter);
         buttonOption.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -62,7 +92,18 @@ public class MainActivity extends AppCompatActivity {
         handler.post(runnable); // 첫 실행 및 주기적 업데이트 시작
         updateUSBStorageInfo();
     }
-
+    // 데이터 업데이트 메소드
+    public void updateSensorData(final int wh, final int humidity, final int battery, final int blackout) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                textViewWHCounterValue.setText(String.valueOf(wh));
+                textViewHuminityValue.setText(humidity + "%");
+                textViewInnerBaterryValue.setText(battery + "%");
+                textViewEternalPowerValue.setText(blackout == 0 ? "On" : "Off");
+            }
+        });
+    }
     private void updateUSBStorageInfo() {
         StorageManager storageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
         usbInfo = new StringBuilder();
@@ -112,5 +153,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(runnable); // 활동이 파괴될 때 업데이트 중지
+        // BroadcastReceiver 해제
+        unregisterReceiver(updateUIReceiver);
     }
 }

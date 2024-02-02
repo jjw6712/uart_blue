@@ -1,9 +1,12 @@
 package com.example.uart_blue;
 
 import android.content.Context;
+import android.content.Intent;
 import android.util.Log;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.io.InputStream;
@@ -22,8 +25,11 @@ import java.util.TimeZone;
 import android.content.Context;
 import android.util.Log;
 
+import android_serialport_api.SerialPort;
+
 public class ReadThread extends Thread {
     private static final String TAG = "UART_Logging";
+    private Context context; // Context 변수 추가
     private static final int PACKET_SIZE = 14; // 14바이트 패킷 (새로운 필드 포함)
     private static final byte STX = 0x02;  // 시작 바이트
     private static final byte ETX = 0x03;  // 종료 바이트
@@ -34,6 +40,9 @@ public class ReadThread extends Thread {
     private SimpleDateFormat dateFormat;
     private InputStream mInputStream;
     private IDataReceiver dataReceiver;
+    private SerialPort mSerialPort;
+    protected OutputStream mOutputStream;
+    private MainActivity mainActivity;
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -41,18 +50,38 @@ public class ReadThread extends Thread {
         void onError(Exception e);
     }
 
-    public ReadThread(InputStream inputStream, IDataReceiver receiver, Context context) {
-        this.mInputStream = inputStream;
+    public ReadThread(String portPath, int baudRate, IDataReceiver receiver, Context context) {
+        this.context = context; // Context 초기화
         this.dataReceiver = receiver;
         this.fileSaveThread = new FileSaveThread(context);
         this.fileSaveThread.start(); // FileSaveThread 시작
         this.dateFormat = new SimpleDateFormat("yyyy, MM, dd, HH, mm, ss");
         this.dateFormat.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
-    }
+        this.mainActivity = mainActivity;
 
+        try {
+            mSerialPort = new SerialPort(new File(portPath), baudRate, 0);
+            mInputStream = mSerialPort.getInputStream();
+            mOutputStream = mSerialPort.getOutputStream();
+        } catch (IOException e) {
+            Log.e(TAG, "Error opening serial port: " + e.getMessage());
+            handleError(e);
+        }
+    }
+    public void sendDataToSerialPort(byte[] data) {
+        try {
+            if (mOutputStream != null) {
+                mOutputStream.write(data);
+                Log.d(TAG, "Data sent to serial port.");
+            } else {
+                Log.e(TAG, "OutputStream is null, cannot send data.");
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error while sending data to serial port: " + e.getMessage());
+        }
+    }
     @Override
     public void run() {
-        clearBuffer(); // 버퍼 초기화
         byte[] buffer = new byte[PACKET_SIZE];
 
         while (!isInterrupted()) {
@@ -68,6 +97,7 @@ public class ReadThread extends Thread {
                     if (bytesRead == PACKET_SIZE - 1 && buffer[PACKET_SIZE - 2] == ETX) {
                         buffer[0] = STX;  // 버퍼 첫 바이트에 STX 추가
                         processPacket(buffer);  // 패킷 처리
+                        //Log.d(TAG, "run: "+bytesToHex(buffer));
                     }
                 }
             } catch (IOException e) {
@@ -110,13 +140,19 @@ public class ReadThread extends Thread {
             );
 
             logEntries.append(logEntry + "\n");
-
             // 로컬 카운터가 1000에 도달하면 로그 데이터를 FileSaveThread에 전달하고 로그 기록 초기화
             if (localCounter >= 1000) {
                 fileSaveThread.addData(logEntries.toString());
                 logEntries.setLength(0);
                 localCounter = 0;
             }
+            // 패킷 처리가 성공했을 때 Broadcast Intent 생성 및 전송
+            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+            intent.putExtra("wh", wh);
+            intent.putExtra("humidity", humidity);
+            intent.putExtra("battery", battery);
+            intent.putExtra("blackout", blackout);
+            context.sendBroadcast(intent);
         } else {
             Log.e(TAG, "체크섬 오류!!!");
         }
@@ -155,6 +191,20 @@ public class ReadThread extends Thread {
             sb.append(String.format("0x%02X ", b));
         }
         return sb.toString().trim();
+    }
+
+    // ReadThread와 FileSaveThread를 정지하는 메소드
+    public void stopThreads() {
+        // ReadThread 중단
+        interrupt();
+        clearBuffer(); // 버퍼 초기화
+        // FileSaveThread 중단
+        if (fileSaveThread != null) {
+            fileSaveThread.stopSaving();  // FileSaveThread에 중단 신호 보내기
+            fileSaveThread.interrupt();   // FileSaveThread 중단
+            fileSaveThread = null;        // 참조 해제
+        }
+        Log.d(TAG, "ReadThread and FileSaveThread stopped");
     }
 }
 

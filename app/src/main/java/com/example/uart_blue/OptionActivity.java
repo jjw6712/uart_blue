@@ -46,17 +46,8 @@ public class OptionActivity extends AppCompatActivity {
     // PasswordManager 인스턴스 생성
     PasswordManager passwordManager = new PasswordManager(); //패스워드매니저 객체
     String deviceNumber; //디바이스 코드
-
-    protected SerialPort mSerialPort;
-    protected OutputStream mOutputStream;
-    private InputStream mInputStream;
     private ReadThread readThread;
-    private FileSaveThread fileSaveThread;
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
-
-    // 서울 시간대 설정
-    TimeZone seoulTimeZone = TimeZone.getTimeZone("Asia/Seoul");
-    SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault());
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint("RestrictedApi")
@@ -66,24 +57,9 @@ public class OptionActivity extends AppCompatActivity {
         setContentView(R.layout.activity_option);
         checkStoragePermission();
 
-        try {
-            mSerialPort = getSerialPort("/dev/ttyS0", 115200);
-            mOutputStream = mSerialPort.getOutputStream();
-            mInputStream = mSerialPort.getInputStream();
-            // FileSaveThread 인스턴스 생성 및 시작
-            // ReadThread 시작
-            startReadingData();
-        } catch (SecurityException | InvalidParameterException e) {
-            Log.e(LOG_TAG, e.getMessage());
-        }
-        fileSaveThread = new FileSaveThread(this);
-        fileSaveThread.start();
-
         setupButtons();
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
-        // 컴포넌트 참조 초기화
-        //EditText editTextDataInput = findViewById(R.id.editTextDataInput);
         Button buttonSave = findViewById(R.id.btsave);
         Button buttonCancel = findViewById(R.id.btcancel);
         Button buttonSelectDevice = findViewById(R.id.btselectDevice);
@@ -188,40 +164,27 @@ public class OptionActivity extends AppCompatActivity {
             // ReadThread와 FileSaveThread를 다시 시작합니다.
             startReadingData();
             // 데이터를 송신합니다.
-            sendToComputer('1');
+            if (readThread != null) {
+                readThread.sendDataToSerialPort(new byte[] { '1' });
+            }
         });
 
         Button sendButton0 = findViewById(R.id.buttonSend0);
         sendButton0.setOnClickListener(v -> {
-            sendToComputer('0');
-            // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
-            stopThreads();
-            // 입력 스트림 버퍼를 정리합니다.
-            clearInputStreamBuffer();
+            if (readThread != null) {
+                readThread.sendDataToSerialPort(new byte[] { '0' });
+                // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
+                readThread.stopThreads();
+            }
         });
     }
 
-
-    @SuppressLint("RestrictedApi")
-    private void sendToComputer(char data) {
-        byte[] sendData = new byte[1];
-        sendData[0] = (byte) data;
-        try {
-            mOutputStream.write(sendData);
-            Log.d(LOG_TAG, "Sent '" + data + "' to Computer");
-        } catch (IOException ex) {
-            Log.e(LOG_TAG, ex.getMessage());
-        }
-    }
     private void startReadingData() {
-        readThread = new ReadThread(mInputStream, new ReadThread.IDataReceiver() {
+        String portPath = "/dev/ttyS0"; // 예시 경로
+        int baudRate = 115200;
+        readThread = new ReadThread(portPath, baudRate, new ReadThread.IDataReceiver() {
             @Override
             public void onReceiveData(String data) {
-                if (fileSaveThread != null) {
-                    fileSaveThread.addData(data);
-                } else {
-                    Log.d(TAG, "FileSaveThread is null, cannot add data");
-                }
             }
 
             @Override
@@ -275,18 +238,6 @@ public class OptionActivity extends AppCompatActivity {
         }
     }
 
-    @SuppressLint("RestrictedApi")
-    public SerialPort getSerialPort(String portNum, int baudRate) {
-        try {
-            if (mSerialPort == null) {
-                mSerialPort = new SerialPort(new File(portNum), baudRate, 0);
-            }
-        } catch (Exception ex) {
-            Log.e(LOG_TAG, ex.getMessage());
-        }
-        return mSerialPort;
-    }
-
     // onActivityResult 메소드를 오버라이드하여 사용자가 폴더를 선택했을 때의 처리를 합니다.
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -301,41 +252,6 @@ public class OptionActivity extends AppCompatActivity {
             SharedPreferences.Editor editor = prefs.edit();
             editor.putString("directoryUri", String.valueOf(directoryUri));
             editor.apply();
-        }
-    }
-
-    // 시리얼 포트를 닫는 메소드
-    private void closeSerialPort() {
-        if (mSerialPort != null) {
-            mSerialPort.close();
-            mSerialPort = null;
-            Log.d(TAG, "Serial port closed");
-        }
-    }
-
-    // ReadThread와 FileSaveThread를 정지하는 메소드
-    private void stopThreads() {
-        if (readThread != null) {
-            readThread.interrupt();
-            readThread = null;
-        }
-        if (fileSaveThread != null) {
-            fileSaveThread.stopSaving();
-            fileSaveThread.interrupt();
-            fileSaveThread = null;
-        }
-        Log.d(TAG, "ReadThread and FileSaveThread stopped");
-    }
-    private void clearInputStreamBuffer() {
-        if (mInputStream != null) {
-            try {
-                while (mInputStream.available() > 0) {
-                    // 사용하지 않는 데이터를 읽어서 버퍼를 비웁니다.
-                    mInputStream.read();
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "Failed to clear input stream buffer: " + e.getMessage());
-            }
         }
     }
 
