@@ -6,6 +6,9 @@ import static androidx.core.content.PackageManagerCompat.LOG_TAG;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -17,6 +20,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -56,6 +60,8 @@ public class OptionActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
         checkStoragePermission();
+        // 시간 입력받기 위한 EditText 추가
+        EditText secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
 
         setupButtons();
 
@@ -123,13 +129,31 @@ public class OptionActivity extends AppCompatActivity {
         buttonSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("selectedStorage", selectedStorage);
-                editor.apply();
+                try {
+                    // SecondHoldingEditText에서 시간을 입력받아 저장
+                    long intervalHours = Long.parseLong(secondHoldingEditText.getText().toString());
+                    if (intervalHours < 1 || intervalHours > 12) {
+                        Toast.makeText(OptionActivity.this, "시간은 1시간부터 12시간 사이로 설정해야 합니다.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    long intervalMillis = intervalHours * 60 * 60 * 1000; // 시간을 밀리초로 변환
 
-                Intent intent = new Intent(OptionActivity.this, MainActivity.class);
-                intent.putExtra("selectedStorage", extractStorageName(selectedStorage));
-                startActivity(intent);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("selectedStorage", selectedStorage);
+                    editor.putLong("fileDeletionIntervalMillis", intervalMillis); // 파일 삭제 간격을 밀리초 단위로 저장
+                    editor.apply();
+
+                    // 파일 삭제 작업 스케줄링
+                    scheduleFileDeletion(intervalMillis);
+
+                    // MainActivity로 이동
+                    Intent intent = new Intent(OptionActivity.this, MainActivity.class);
+                    intent.putExtra("selectedStorage", extractStorageName(selectedStorage));
+                    startActivity(intent);
+
+                } catch (NumberFormatException e) {
+                    Toast.makeText(OptionActivity.this, "잘못된 시간 형식입니다.", Toast.LENGTH_SHORT).show();
+                }
             }
 
             private String extractStorageName(String storageInfo) {
@@ -139,6 +163,7 @@ public class OptionActivity extends AppCompatActivity {
                 return storageInfo;
             }
         });
+
 
         // 취소 버튼 클릭 리스너
         buttonCancel.setOnClickListener(new View.OnClickListener() {
@@ -253,6 +278,17 @@ public class OptionActivity extends AppCompatActivity {
             editor.putString("directoryUri", String.valueOf(directoryUri));
             editor.apply();
         }
+    }
+
+    private void scheduleFileDeletion(long intervalMillis) {
+        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        Intent intent = new Intent(this, FileDeletionReceiver.class);
+
+        // PendingIntent에 FLAG_IMMUTABLE을 추가합니다.
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+
+        // 반복 알람 설정
+        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), intervalMillis, pendingIntent);
     }
 
 }
