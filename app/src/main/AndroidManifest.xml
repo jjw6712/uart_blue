@@ -23,7 +23,7 @@
         android:supportsRtl="true"
         android:theme="@style/Base.Theme.Uart_blue"
         tools:targetApi="31">
-
+        <activity android:name=".GPIOActivity"/>
         <activity android:name=".OptionActivity"/>
         <activity
             android:name=".MainActivity"

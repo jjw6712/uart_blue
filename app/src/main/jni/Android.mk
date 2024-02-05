@@ -16,11 +16,19 @@
 
 LOCAL_PATH := $(call my-dir)
 
-include $(CLEAR_VARS)
+APP_PLATFORM := android-19
+APP_ABI := armeabi-v7a
 
-TARGET_PLATFORM := android-3
+# Define serial_port module
+include $(CLEAR_VARS)
 LOCAL_MODULE    := serial_port
 LOCAL_SRC_FILES := SerialPort.c
 LOCAL_LDLIBS    := -llog
+include $(BUILD_SHARED_LIBRARY)
 
+# Define native-lib module
+include $(CLEAR_VARS)
+LOCAL_MODULE    := native-lib
+LOCAL_SRC_FILES := gpio.c
+LOCAL_LDLIBS    := -llog
 include $(BUILD_SHARED_LIBRARY)

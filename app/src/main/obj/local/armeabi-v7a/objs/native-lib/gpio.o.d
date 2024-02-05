@@ -1,0 +1,4 @@
+./obj/local/armeabi-v7a/objs/native-lib/gpio.o: jni/gpio.c \
+  jni/com_example_uart_blue_GpioControl.h
+
+jni/com_example_uart_blue_GpioControl.h:

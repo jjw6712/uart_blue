@@ -1,0 +1,29 @@
+<!-- res/layout/activity_main.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/white">
+
+    <TextView
+        android:id="@+id/textViewGpio138"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GPIO 138 상태: 대기"
+        android:textSize="18sp"/>
+
+    <TextView
+        android:id="@+id/textViewGpio139"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GPIO 139 상태: 대기"
+        android:textSize="18sp"/>
+
+    <TextView
+        android:id="@+id/textViewGpio28"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GPIO 28 상태: 대기"
+        android:textSize="18sp"/>
+</LinearLayout>

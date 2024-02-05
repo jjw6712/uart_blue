@@ -181,6 +181,14 @@ public class OptionActivity extends AppCompatActivity {
                 startActivityForResult(intent, REQUEST_DIRECTORY_PICKER);
             }
         });
+        Button buttonSwitch = findViewById(R.id.buttonSwitch);
+        buttonSwitch.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(OptionActivity.this, GPIOActivity.class);
+                startActivity(intent);
+            }
+        });
     }
 
     private void setupButtons() {
