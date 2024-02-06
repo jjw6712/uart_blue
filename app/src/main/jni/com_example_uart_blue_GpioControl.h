@@ -9,6 +9,14 @@ extern "C" {
 #endif
 /*
  * Class:     com_example_uart_blue_GpioControl
+ * Method:    initializeGpioPins
+ * Signature: ()V
+ */
+JNIEXPORT void JNICALL Java_com_example_uart_1blue_GpioControl_initializeGpioPins
+  (JNIEnv *, jobject);
+
+/*
+ * Class:     com_example_uart_blue_GpioControl
  * Method:    readGpioValue
  * Signature: (I)I
  */
