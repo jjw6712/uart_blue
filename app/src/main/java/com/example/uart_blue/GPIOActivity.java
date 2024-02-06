@@ -3,34 +3,43 @@ package com.example.uart_blue;
 import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-public class GPIOActivity extends AppCompatActivity {
-    private TextView textViewGpio138;
-    private TextView textViewGpio139;
-    private TextView textViewGpio28;
+public class GPIOActivity {
     private GpioControl gpioControl;
+    private ReadThread readThread;
+    private boolean isGpioInputEnabled = false;
+    private final Handler handler = new Handler();
+    private OptionActivity optionActivity;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_gpio);
-
-        textViewGpio138 = findViewById(R.id.textViewGpio138);
-        textViewGpio139 = findViewById(R.id.textViewGpio139);
-        textViewGpio28 = findViewById(R.id.textViewGpio28);
-
+    // 생성자에서 OptionActivity 인스턴스를 받습니다.
+    public GPIOActivity(OptionActivity optionActivity) {
+        this.optionActivity = optionActivity;
         gpioControl = new GpioControl();
-        gpioControl.initializeGpioPinsjava(); // GPIO 핀 초기화
+        gpioControl.initializeGpioPinsjava();
+        startGpioStatusUpdate();
+    }
 
-        // 정기적으로 GPIO 상태를 확인하고 UI 업데이트
-        final Handler handler = new Handler();
+    // GPIO 입력 활성화
+    public void enableGpioInput() {
+        isGpioInputEnabled = true;
+    }
+
+    // GPIO 입력 비활성화
+    public void disableGpioInput() {
+        isGpioInputEnabled = false;
+    }
+
+    private void startGpioStatusUpdate() {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                updateGpioStatus();
+                if (isGpioInputEnabled) {
+                    updateGpioStatus();
+                }
                 handler.postDelayed(this, 1000); // 1초마다 반복
             }
         };
@@ -38,17 +47,25 @@ public class GPIOActivity extends AppCompatActivity {
     }
 
     private void updateGpioStatus() {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                String status138 = gpioControl.getPinStatus(138);
-                String status139 = gpioControl.getPinStatus(139);
-                String status28 = gpioControl.getPinStatus(28);
+        boolean is138Active = gpioControl.isGpioActive(138);
+        boolean is139Active = gpioControl.isGpioActive(139);
 
-                textViewGpio138.setText("GPIO 138 상태: " + status138);
-                textViewGpio139.setText("GPIO 139 상태: " + status139);
-                textViewGpio28.setText("GPIO 28 상태: " + status28);
+        if (is138Active) {
+            // 시리얼 포트를 통해 '1' 데이터를 보냅니다.
+            optionActivity.startReadingData();
+            if (readThread != null) {
+                readThread.sendDataToSerialPort(new byte[] { '1' });
             }
-        });
+        }
+
+        if (is139Active) {
+            // 시리얼 포트를 통해 '0' 데이터를 보냅니다.
+            if (readThread != null) {
+                readThread.sendDataToSerialPort(new byte[]{'0'});
+                // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
+                readThread.stopThreads();
+            }
+        }
     }
+
 }

@@ -196,13 +196,17 @@
                         android:layout_below="@+id/buttonSend1"
                         android:layout_marginStart="500dp"
                         android:text="정지"/>
-                    <Button
-                        android:id="@+id/buttonSwitch"
+
+                    <CheckBox
+                        android:id="@+id/checkboxSwitchTest"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_below="@+id/buttonSend0"
-                        android:layout_marginStart="500dp"
-                        android:text="스위치 테스트"/>
+                        android:layout_below="@+id/TimesSpinner"
+                        android:layout_marginStart="20dp"
+                        android:layout_marginTop="64dp"
+                        android:text="스위치 테스트"
+                        android:textStyle="bold"/>
+
                 </RelativeLayout>
             </androidx.cardview.widget.CardView>
 

@@ -19,6 +19,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Toast;
 
@@ -52,6 +53,8 @@ public class OptionActivity extends AppCompatActivity {
     String deviceNumber; //디바이스 코드
     private ReadThread readThread;
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
+    // 멤버 변수로 GPIOActivity 참조를 유지합니다.
+    private GPIOActivity gpioActivity;
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint("RestrictedApi")
@@ -60,6 +63,20 @@ public class OptionActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
         checkStoragePermission();
+
+        // GPIOActivity 인스턴스 생성 또는 가져오기
+        gpioActivity = new GPIOActivity(this);
+        CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
+        checkboxSwitchTest.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                // 체크박스가 체크된 경우, GPIO 입력 활성화
+                gpioActivity.enableGpioInput();
+            } else {
+                // 체크박스가 해제된 경우, GPIO 입력 비활성화
+                gpioActivity.disableGpioInput();
+            }
+        });
+
         // 시간 입력받기 위한 EditText 추가
         EditText secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
 
@@ -181,14 +198,7 @@ public class OptionActivity extends AppCompatActivity {
                 startActivityForResult(intent, REQUEST_DIRECTORY_PICKER);
             }
         });
-        Button buttonSwitch = findViewById(R.id.buttonSwitch);
-        buttonSwitch.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Intent intent = new Intent(OptionActivity.this, GPIOActivity.class);
-                startActivity(intent);
-            }
-        });
+
     }
 
     private void setupButtons() {
@@ -212,7 +222,7 @@ public class OptionActivity extends AppCompatActivity {
         });
     }
 
-    private void startReadingData() {
+    public void startReadingData() {
         String portPath = "/dev/ttyS0"; // 예시 경로
         int baudRate = 115200;
         readThread = new ReadThread(portPath, baudRate, new ReadThread.IDataReceiver() {

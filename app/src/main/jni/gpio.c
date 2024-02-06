@@ -87,3 +87,4 @@ Java_com_example_uart_1blue_GpioControl_readGpioValue(JNIEnv *env, jobject thiz,
 }
 
 
+

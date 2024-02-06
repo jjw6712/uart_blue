@@ -28,7 +28,7 @@ include $(BUILD_SHARED_LIBRARY)
 
 # Define native-lib module
 include $(CLEAR_VARS)
-LOCAL_MODULE    := native-lib
+LOCAL_MODULE    := gpio_port
 LOCAL_SRC_FILES := gpio.c
 LOCAL_LDLIBS    := -llog
 include $(BUILD_SHARED_LIBRARY)
