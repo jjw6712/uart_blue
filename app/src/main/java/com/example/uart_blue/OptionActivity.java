@@ -45,6 +45,7 @@ import android_serialport_api.SerialPort;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
+    private static final String SWITCH_TEST_KEY = "SwitchTest";
     private static final int STORAGE_PERMISSION_CODE = 100;
     private static final int REQUEST_DIRECTORY_PICKER = 101;
     private String selectedStorage = ""; //선택한 저장매체
@@ -66,13 +67,19 @@ public class OptionActivity extends AppCompatActivity {
 
         // GPIOActivity 인스턴스 생성 또는 가져오기
         gpioActivity = new GPIOActivity(this);
+
         CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
         checkboxSwitchTest.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            // SharedPreferences에 체크박스 상태를 저장합니다.
+            SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putBoolean(SWITCH_TEST_KEY, isChecked);
+            editor.apply();
+
+            // GPIO 입력 상태를 업데이트합니다.
             if (isChecked) {
-                // 체크박스가 체크된 경우, GPIO 입력 활성화
                 gpioActivity.enableGpioInput();
             } else {
-                // 체크박스가 해제된 경우, GPIO 입력 비활성화
                 gpioActivity.disableGpioInput();
             }
         });
@@ -80,7 +87,7 @@ public class OptionActivity extends AppCompatActivity {
         // 시간 입력받기 위한 EditText 추가
         EditText secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
 
-        setupButtons();
+        //setupButtons(); //터치로 동작을 제어하는 버튼 함수
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
         Button buttonSave = findViewById(R.id.btsave);
@@ -95,9 +102,8 @@ public class OptionActivity extends AppCompatActivity {
         if (storageInfo == null || storageInfo.isEmpty()) {
             selectedStorage = "";
         }
-
-        // SharedPreferences에서 선택된 저장 매체 복원
         SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        // SharedPreferences에서 선택된 저장 매체 복원
         deviceNumber = sharedPreferences.getString("deviceNumber", "");
         // EditText에 저장된 디바이스 번호 설정
         deviceNumberInput.setText(deviceNumber);
@@ -158,6 +164,7 @@ public class OptionActivity extends AppCompatActivity {
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("selectedStorage", selectedStorage);
                     editor.putLong("fileDeletionIntervalMillis", intervalMillis); // 파일 삭제 간격을 밀리초 단위로 저장
+                    editor.putBoolean(SWITCH_TEST_KEY, checkboxSwitchTest.isChecked()); // 체크박스의 현재 상태를 저장
                     editor.apply();
 
                     // 파일 삭제 작업 스케줄링
@@ -201,7 +208,7 @@ public class OptionActivity extends AppCompatActivity {
 
     }
 
-    private void setupButtons() {
+    /*private void setupButtons() {
         Button sendButton1 = findViewById(R.id.buttonSend1);
         sendButton1.setOnClickListener(view -> {
             // ReadThread와 FileSaveThread를 다시 시작합니다.
@@ -220,7 +227,7 @@ public class OptionActivity extends AppCompatActivity {
                 readThread.stopThreads();
             }
         });
-    }
+    }*/
 
     public void startReadingData() {
         String portPath = "/dev/ttyS0"; // 예시 경로
@@ -243,7 +250,37 @@ public class OptionActivity extends AppCompatActivity {
         }, this);
         readThread.start();
     }
+    // 이 메서드는 GPIOActivity에서 호출됩니다.
+    public void startReadingDataFromGPIO() {
+        if (readThread == null || !readThread.isAlive()) {
+            SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+            boolean isSwitchChecked = sharedPreferences.getBoolean(SWITCH_TEST_KEY, false);
 
+            // 체크박스의 현재 상태를 설정합니다.
+            CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
+            checkboxSwitchTest.setChecked(isSwitchChecked);
+
+            // 체크박스의 상태에 따라 GPIO 입력을 활성화하거나 비활성화합니다.
+            if (isSwitchChecked) {
+                startReadingData();
+            } else {
+               return;
+            }
+        }
+    }
+
+    public void sendDataToSerialPort(byte[] data) {
+        if (readThread != null) {
+            readThread.sendDataToSerialPort(data);
+        }
+    }
+
+    public void stopReadThread() {
+        if (readThread != null) {
+            readThread.stopThreads();
+            readThread = null; // 스레드 참조 해제
+        }
+    }
     // ... TCP/IP 설정 저장 및 테스트를 위한 추가적인 메소드
     private List<String> parseStorageInfo(String storageInfo) {
         List<String> storageDetails = new ArrayList<>();
@@ -309,6 +346,24 @@ public class OptionActivity extends AppCompatActivity {
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), intervalMillis, pendingIntent);
     }
 
+    protected void onResume() {
+        super.onResume();
+
+        // SharedPreferences에서 체크박스 상태를 로드합니다.
+        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        boolean isSwitchChecked = sharedPreferences.getBoolean(SWITCH_TEST_KEY, false);
+
+        // 체크박스 상태에 따라 GPIO 입력을 활성화 또는 비활성화합니다.
+        if (isSwitchChecked) {
+            gpioActivity.enableGpioInput();
+        } else {
+            gpioActivity.disableGpioInput();
+        }
+
+        // 체크박스 UI를 저장된 상태와 일치시킵니다.
+        CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
+        checkboxSwitchTest.setChecked(isSwitchChecked);
+    }
 }
 
 
