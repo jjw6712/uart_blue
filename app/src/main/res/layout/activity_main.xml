@@ -273,19 +273,49 @@
         <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:gravity="center"
             >
 
-            <Button
-                android:id="@+id/buttonIO"
-                android:layout_width="200dp"
-                android:layout_height="200dp"
+            <TextView
+                android:id="@+id/tvStop"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
                 android:layout_centerInParent="true"
-                android:text="Gate OFF"
+                android:backgroundTint="@color/white"
+                android:gravity="center"
+                android:text="정지"
+                android:textColor="@color/red"
                 android:textSize="40dp"
                 android:textStyle="bold"
-                android:textColor="@color/red"
-                android:backgroundTint="@color/white"
                 tools:ignore="DuplicateIds" />
+            <TextView
+                android:id="@+id/tvDrive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:backgroundTint="@color/white"
+                android:text="운전"
+                android:gravity="center"
+                android:textColor="@color/green"
+                android:textSize="40dp"
+                android:textStyle="bold"
+                tools:ignore="DuplicateIds"
+                android:visibility="invisible"/>
+
+            <TextView
+                android:id="@+id/tvWH"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/tvDrive"
+                android:layout_centerInParent="true"
+                android:backgroundTint="@color/white"
+                android:gravity="center"
+                android:text="수격"
+                android:textColor="@color/blue"
+                android:textSize="40dp"
+                android:textStyle="bold"
+                tools:ignore="DuplicateIds"
+                android:visibility="invisible"/>
 
         </RelativeLayout>
     </androidx.cardview.widget.CardView>

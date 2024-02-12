@@ -2,13 +2,10 @@ package com.example.uart_blue;
 
 import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
-import android.annotation.SuppressLint;
-import android.os.Bundle;
+import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.util.Log;
-import android.widget.TextView;
-
-import androidx.appcompat.app.AppCompatActivity;
 
 public class GPIOActivity extends Thread{
     private GpioControl gpioControl;
@@ -16,9 +13,11 @@ public class GPIOActivity extends Thread{
     private final Handler handler = new Handler();
     private OptionActivity optionActivity;
     private Runnable updateGpioStatusRunnable; // Runnable 객체를 멤버 변수로 선언
+    Context context;
 
     // 생성자에서 OptionActivity 인스턴스를 받습니다.
-    public GPIOActivity(OptionActivity optionActivity)  {
+    public GPIOActivity(OptionActivity optionActivity, Context context)  {
+        this.context = context;
         this.optionActivity = optionActivity;
         gpioControl = new GpioControl();
         gpioControl.initializeGpioPinsjava();
@@ -28,7 +27,7 @@ public class GPIOActivity extends Thread{
             public void run() {
                 if (isGpioInputEnabled) {
                     updateGpioStatus();
-                    handler.postDelayed(this, 500); // 1초마다 반복
+                    handler.postDelayed(this, 100); // 1초마다 반복
                 }
             }
         };
@@ -62,12 +61,16 @@ public class GPIOActivity extends Thread{
 
         boolean is138Active = gpioControl.isGpioActive(138);
         boolean is139Active = gpioControl.isGpioActive(139);
+        boolean is28Active = gpioControl.isGpioActive(28);
 
         if (is138Active && isGpioInputEnabled) {
             // OptionActivity를 통해 ReadThread 시작
             optionActivity.startReadingDataFromGPIO();
             // 시리얼 포트를 통해 '1' 데이터를 보냅니다.
             optionActivity.sendDataToSerialPort(new byte[] {'1'});
+            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+            intent.putExtra("GPIO_138_ACTIVE", true);
+            context.sendBroadcast(intent);
         }
 
         if (is139Active && isGpioInputEnabled) {
@@ -75,6 +78,17 @@ public class GPIOActivity extends Thread{
             optionActivity.sendDataToSerialPort(new byte[]{'0'});
             // ReadThread 정지
             optionActivity.stopReadThread();
+            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+            intent.putExtra("GPIO_139_ACTIVE", true);
+            context.sendBroadcast(intent);
+        }
+
+        if (is28Active && isGpioInputEnabled) {
+            // ReadThread 정지
+            //optionActivity.stopReadThread();
+            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+            intent.putExtra("GPIO_28_ACTIVE", true);
+            context.sendBroadcast(intent);
         }
     }
 

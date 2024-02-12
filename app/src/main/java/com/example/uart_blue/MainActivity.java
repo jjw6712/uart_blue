@@ -32,10 +32,7 @@ public class MainActivity extends AppCompatActivity {
     private TextView textViewUSBStorageInfo;
     private ImageButton buttonOption;
     private final Handler handler = new Handler();
-    private TextView textViewWHCounterValue;
-    private TextView textViewHuminityValue;
-    private TextView textViewInnerBaterryValue;
-    private TextView textViewEternalPowerValue;
+    private TextView tvStop, tvDrive, tvWH;
     private final Runnable runnable = new Runnable() {
         @Override
         public void run() {
@@ -64,6 +61,43 @@ public class MainActivity extends AppCompatActivity {
             textViewHumidityValue.setText(String.format("%d%%", humidity));
             textViewInnerBatteryValue.setText(String.format("%d", battery));
             textViewEternalPowerValue.setText(blackout == 0 ? "ON" : "OFF");
+
+            tvStop = findViewById(R.id.tvStop);
+            tvDrive = findViewById(R.id.tvDrive);
+            tvWH = findViewById(R.id.tvWH);
+            //GPIO 동작 상태 체크를 위해 GPIOActivity에서 각 핀들의 활
+            boolean is138Active = intent.getBooleanExtra("GPIO_138_ACTIVE", false);
+            boolean is139Active = intent.getBooleanExtra("GPIO_139_ACTIVE", false);
+            boolean is28Active = intent.getBooleanExtra("GPIO_28_ACTIVE", false);
+            if(is138Active) {
+                // GPIO 138이 활성화되었을 때의 동작 (TextView 활성화 등)
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvDrive.setVisibility(View.VISIBLE);
+                        tvStop.setVisibility(View.INVISIBLE);
+                        tvWH.setVisibility(View.INVISIBLE);
+                    }
+                });
+            }
+            if(is139Active){
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvStop.setVisibility(View.VISIBLE);
+                        tvDrive.setVisibility(View.INVISIBLE);
+                        tvWH.setVisibility(View.INVISIBLE);
+                    }
+                });
+            }
+            if(is28Active){
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        tvWH.setVisibility(View.VISIBLE);
+                    }
+                });
+            }
         }
     };
     @Override
@@ -76,6 +110,7 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter filter = new IntentFilter();
         filter.addAction("com.example.uart_blue.ACTION_UPDATE_UI");
         registerReceiver(updateUIReceiver, filter);
+
         buttonOption.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -93,17 +128,8 @@ public class MainActivity extends AppCompatActivity {
         updateUSBStorageInfo();
     }
     // 데이터 업데이트 메소드
-    public void updateSensorData(final int wh, final int humidity, final int battery, final int blackout) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                textViewWHCounterValue.setText(String.valueOf(wh));
-                textViewHuminityValue.setText(humidity + "%");
-                textViewInnerBaterryValue.setText(battery + "%");
-                textViewEternalPowerValue.setText(blackout == 0 ? "On" : "Off");
-            }
-        });
-    }
+
+
     private void updateUSBStorageInfo() {
         StorageManager storageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
         usbInfo = new StringBuilder();

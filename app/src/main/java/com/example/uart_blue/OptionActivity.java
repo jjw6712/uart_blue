@@ -66,7 +66,7 @@ public class OptionActivity extends AppCompatActivity {
         checkStoragePermission();
 
         // GPIOActivity 인스턴스 생성 또는 가져오기
-        gpioActivity = new GPIOActivity(this);
+        gpioActivity = new GPIOActivity(this, OptionActivity.this);
 
         CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
         checkboxSwitchTest.setOnCheckedChangeListener((buttonView, isChecked) -> {

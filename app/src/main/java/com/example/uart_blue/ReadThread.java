@@ -42,7 +42,6 @@ public class ReadThread extends Thread {
     private IDataReceiver dataReceiver;
     private SerialPort mSerialPort;
     protected OutputStream mOutputStream;
-    private MainActivity mainActivity;
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -57,7 +56,6 @@ public class ReadThread extends Thread {
         this.fileSaveThread.start(); // FileSaveThread 시작
         this.dateFormat = new SimpleDateFormat("yyyy, MM, dd, HH, mm, ss");
         this.dateFormat.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
-        this.mainActivity = mainActivity;
 
         try {
             mSerialPort = new SerialPort(new File(portPath), baudRate, 0);
