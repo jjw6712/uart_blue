@@ -1,8 +1,5 @@
 package com.example.uart_blue;
 
-import static android.content.ContentValues.TAG;
-import static androidx.core.content.PackageManagerCompat.LOG_TAG;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -27,21 +24,19 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.documentfile.provider.DocumentFile;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.security.InvalidParameterException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
-
-import android_serialport_api.SerialPort;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class OptionActivity extends AppCompatActivity {
     private static final String TAG = "OptionTag";
@@ -65,8 +60,18 @@ public class OptionActivity extends AppCompatActivity {
         setContentView(R.layout.activity_option);
         checkStoragePermission();
 
+
+
         // GPIOActivity 인스턴스 생성 또는 가져오기
         gpioActivity = new GPIOActivity(this, OptionActivity.this);
+
+        EditText beforeTimesEditText = findViewById(R.id.BeforeTimesEditText);
+        EditText afterTimesEditText = findViewById(R.id.AfterTimesEditText);
+
+        // 밀리초 단위로 변환
+        //long beforeMillis = beforeSeconds * 1000;
+        //long afterMillis = afterMinutes * 60 * 1000;
+
 
         CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
         checkboxSwitchTest.setOnCheckedChangeListener((buttonView, isChecked) -> {
@@ -107,6 +112,15 @@ public class OptionActivity extends AppCompatActivity {
         deviceNumber = sharedPreferences.getString("deviceNumber", "");
         // EditText에 저장된 디바이스 번호 설정
         deviceNumberInput.setText(deviceNumber);
+        //수격전, 후 시간설정값 저장
+        int beforeSeconds = sharedPreferences.getInt("beforeSeconds", 0);
+        int afterMinutes = sharedPreferences.getInt("afterMinutes", 0);
+        int intervalHours = sharedPreferences.getInt("intervalHours", 0);
+
+        beforeTimesEditText.setText(String.valueOf(beforeSeconds));
+        afterTimesEditText.setText(String.valueOf(afterMinutes));
+        secondHoldingEditText.setText(String.valueOf(intervalHours));
+
 
         // 패스워드 버튼 클릭 리스너 설정
         findViewById(R.id.passwordButton).setOnClickListener(new View.OnClickListener() {
@@ -154,7 +168,8 @@ public class OptionActivity extends AppCompatActivity {
             public void onClick(View v) {
                 try {
                     // SecondHoldingEditText에서 시간을 입력받아 저장
-                    long intervalHours = Long.parseLong(secondHoldingEditText.getText().toString());
+                    int intervalHours = Integer.parseInt(secondHoldingEditText.getText().toString());
+                    // 시간이 유효한 범위 내에 있는지 확인
                     if (intervalHours < 1 || intervalHours > 12) {
                         Toast.makeText(OptionActivity.this, "시간은 1시간부터 12시간 사이로 설정해야 합니다.", Toast.LENGTH_SHORT).show();
                         return;
@@ -165,6 +180,17 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putString("selectedStorage", selectedStorage);
                     editor.putLong("fileDeletionIntervalMillis", intervalMillis); // 파일 삭제 간격을 밀리초 단위로 저장
                     editor.putBoolean(SWITCH_TEST_KEY, checkboxSwitchTest.isChecked()); // 체크박스의 현재 상태를 저장
+
+                    int beforeSeconds = Integer.parseInt(beforeTimesEditText.getText().toString()); // 초 단위
+                    int afterMinutes = Integer.parseInt(afterTimesEditText.getText().toString()); // 분 단위
+                    // 밀리초 단위로 변환
+                    long beforeMillis = beforeSeconds * 1000;
+                    long afterMillis = afterMinutes * 60 * 1000;
+                    editor.putInt("intervalHours", intervalHours);
+                    editor.putInt("beforeSeconds", beforeSeconds);
+                    editor.putInt("afterMinutes", afterMinutes);
+                    editor.putLong("beforeMillis", beforeMillis);
+                    editor.putLong("afterMillis", afterMillis);
                     editor.apply();
 
                     // 파일 삭제 작업 스케줄링

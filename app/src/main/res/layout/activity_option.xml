@@ -182,20 +182,6 @@
                             android:textStyle="bold"
                             android:inputType="text" />
                     </com.google.android.material.textfield.TextInputLayout>
-                    <Button
-                        android:id="@+id/buttonSend1"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_below="@+id/WaterHammerTitle"
-                        android:layout_marginStart="500dp"
-                        android:text="동작"/>
-                    <Button
-                        android:id="@+id/buttonSend0"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_below="@+id/buttonSend1"
-                        android:layout_marginStart="500dp"
-                        android:text="정지"/>
 
                     <CheckBox
                         android:id="@+id/checkboxSwitchTest"
