@@ -81,6 +81,7 @@ public class ReadThread extends Thread {
     @Override
     public void run() {
         byte[] buffer = new byte[PACKET_SIZE];
+        int bufferIndex = 0;
 
         while (!isInterrupted()) {
             try {
@@ -88,18 +89,24 @@ public class ReadThread extends Thread {
 
                 int data = mInputStream.read();  // 1바이트 읽기
                 if (data == -1) continue;  // 데이터가 없으면 계속
-                //Log.d(TAG, "run: "+bytesToHex(buffer));
+
                 byte readByte = (byte) data;
-                if (readByte == STX) {  // 패킷 시작 바이트(STX)를 만나면
-                    int bytesRead = mInputStream.read(buffer, 1, PACKET_SIZE - 1);  // 나머지 패킷 읽기
-                    if (bytesRead == PACKET_SIZE - 1 && buffer[PACKET_SIZE - 2] == ETX) {
-                        buffer[0] = STX;  // 버퍼 첫 바이트에 STX 추가
+                //Log.d(TAG, "run: "+bytesToHex(buffer));
+                if (readByte == STX && bufferIndex == 0) {  // 패킷 시작 바이트(STX)를 만나면
+                    buffer[bufferIndex++] = readByte;  // STX 저장
+                } else if (bufferIndex > 0 && bufferIndex < PACKET_SIZE) {
+                    buffer[bufferIndex++] = readByte;  // 패킷 데이터 저장
+                    if (bufferIndex == PACKET_SIZE && buffer[PACKET_SIZE - 2] == ETX) {
                         processPacket(buffer);  // 패킷 처리
-                        Log.d(TAG, "run: "+bytesToHex(buffer));
+                        //Log.d(TAG, "run: "+bytesToHex(buffer));
+                        bufferIndex = 0;  // 버퍼 인덱스 초기화
                     }
+                } else {
+                    bufferIndex = 0;  // 인덱스 초기화
                 }
             } catch (IOException e) {
                 handleError(e);
+                bufferIndex = 0;  // 오류 발생 시 인덱스 초기화
             }
         }
     }
@@ -120,7 +127,7 @@ public class ReadThread extends Thread {
             int stop = packet[8];
             int blackout = packet[9];
             byte etx = packet[10];
-
+            ++localCounter;
             // 현재 시간과 함께 로그 기록 생성
             String timestamp = dateFormat.format(new Date());
             int wh = 0;
@@ -136,6 +143,7 @@ public class ReadThread extends Thread {
                     stop, // 정지 상태
                     wh , // WH 상태
                     blackout // 블랙아웃 상태
+
             );
 
             logEntries.append(logEntry + "\n");
