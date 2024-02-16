@@ -92,7 +92,7 @@ public class OptionActivity extends AppCompatActivity {
         // 시간 입력받기 위한 EditText 추가
         EditText secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
 
-        //setupButtons(); //터치로 동작을 제어하는 버튼 함수
+        setupButtons(); //터치로 동작을 제어하는 버튼 함수
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
         Button buttonSave = findViewById(R.id.btsave);
@@ -254,7 +254,53 @@ public class OptionActivity extends AppCompatActivity {
             }
         });
     }*/
+    private void setupButtons() {
+        Button sendButton1 = findViewById(R.id.btstart);
+        sendButton1.setOnClickListener(view -> {
+            // ReadThread와 FileSaveThread를 다시 시작합니다.
+            startReadingData();
+            // 데이터를 송신합니다.
+            if (readThread != null) {
+                // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
+                byte[] startSignal = {0x02, 0x10, 0x03};
+                // 체크섬 계산
+                byte checksum = calculateChecksum(startSignal);
+                // 체크섬을 포함하여 전송할 데이터 생성
+                byte[] dataToSend = new byte[startSignal.length + 1];
+                System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
+                dataToSend[dataToSend.length - 1] = checksum;
+                // 데이터 전송
+                readThread.sendDataToSerialPort(dataToSend);
+            }
+        });
 
+        Button sendButton0 = findViewById(R.id.btstop);
+        sendButton0.setOnClickListener(v -> {
+            if (readThread != null) {
+                // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
+                byte[] startSignal = {0x02, 0x20, 0x03};
+                // 체크섬 계산
+                byte checksum = calculateChecksum(startSignal);
+                // 체크섬을 포함하여 전송할 데이터 생성
+                byte[] dataToSend = new byte[startSignal.length + 1];
+                System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
+                dataToSend[dataToSend.length - 1] = checksum;
+                // 데이터 전송
+                readThread.sendDataToSerialPort(dataToSend);
+                // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
+                readThread.stopThreads();
+            }
+        });
+    }
+
+    // 체크섬을 계산하는 메소드
+    private byte calculateChecksum(byte[] data) {
+        byte checksum = 0;
+        for (byte b : data) {
+            checksum ^= b; // XOR 연산
+        }
+        return checksum;
+    }
     public void startReadingData() {
         String portPath = "/dev/ttyS0"; // 예시 경로
         int baudRate = 115200;

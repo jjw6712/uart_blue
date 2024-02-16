@@ -182,7 +182,22 @@
                             android:textStyle="bold"
                             android:inputType="text" />
                     </com.google.android.material.textfield.TextInputLayout>
-
+                    <Button
+                        android:id="@+id/btstart"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="운전"
+                        android:layout_below="@+id/PressTitle"
+                        android:layout_marginStart="500dp"
+                        />
+                    <Button
+                        android:id="@+id/btstop"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="정지"
+                        android:layout_below="@+id/btstart"
+                        android:layout_marginStart="500dp"
+                        />
                     <CheckBox
                         android:id="@+id/checkboxSwitchTest"
                         android:layout_width="wrap_content"
