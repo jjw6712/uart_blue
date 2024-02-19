@@ -30,6 +30,7 @@ public class GPIOActivity {
     private OptionActivity optionActivity;
     private Runnable updateGpioStatusRunnable; // Runnable 객체를 멤버 변수로 선언
     Context context;
+    ReadThread readThread;
 
     // 생성자에서 OptionActivity 인스턴스를 받습니다.
     public GPIOActivity(OptionActivity optionActivity, Context context)  {
@@ -83,7 +84,19 @@ public class GPIOActivity {
             // OptionActivity를 통해 ReadThread 시작
             optionActivity.startReadingDataFromGPIO();
             // 시리얼 포트를 통해 '1' 데이터를 보냅니다.
-            optionActivity.sendDataToSerialPort(new byte[]{'1'});
+            //optionActivity.sendDataToSerialPort(new byte[]{'1'});
+            // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
+            byte[] startSignal = {0x02, 0x10, 0x03};
+            // 체크섬 계산
+            byte checksum = optionActivity.calculateChecksum(startSignal);
+            // 체크섬을 포함하여 전송할 데이터 생성
+            byte[] dataToSend = new byte[startSignal.length + 1];
+            System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
+            dataToSend[dataToSend.length - 1] = checksum;
+
+            // 준비된 데이터를 시리얼 포트를 통해 전송
+            optionActivity.sendDataToSerialPort(dataToSend);
+
             Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
             intent.putExtra("GPIO_138_ACTIVE", true);
             context.sendBroadcast(intent);
@@ -91,7 +104,18 @@ public class GPIOActivity {
 
         if (is139Active && isGpioInputEnabled) {
             // 시리얼 포트를 통해 '0' 데이터를 보냅니다.
-            optionActivity.sendDataToSerialPort(new byte[]{'0'});
+            //optionActivity.sendDataToSerialPort(new byte[]{'0'});
+            // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
+            byte[] startSignal = {0x02, 0x20, 0x03};
+            // 체크섬 계산
+            byte checksum = optionActivity.calculateChecksum(startSignal);
+            // 체크섬을 포함하여 전송할 데이터 생성
+            byte[] dataToSend = new byte[startSignal.length + 1];
+            System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
+            dataToSend[dataToSend.length - 1] = checksum;
+
+            // 준비된 데이터를 시리얼 포트를 통해 전송
+            optionActivity.sendDataToSerialPort(dataToSend);
             // ReadThread 정지
             optionActivity.stopReadThread();
             Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");

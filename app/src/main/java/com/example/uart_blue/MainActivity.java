@@ -47,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
         public void onReceive(Context context, Intent intent) {
             // Intent에서 데이터를 추출합니다.
             int wh = intent.getIntExtra("wh", 0);
-            int humidity = intent.getIntExtra("humidity", 0);
+            //int humidity = intent.getIntExtra("humidity", 0);
             int battery = intent.getIntExtra("battery", 0);
             int blackout = intent.getIntExtra("blackout", 0);
 
@@ -58,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
             TextView textViewEternalPowerValue = findViewById(R.id.textViewEternalPowerValue);
 
             textViewWHCounterValue.setText(String.valueOf(wh));
-            textViewHumidityValue.setText(String.format("%d%%", humidity));
+            //textViewHumidityValue.setText(String.format("%d%%", humidity));
             textViewInnerBatteryValue.setText(String.format("%d", battery));
             textViewEternalPowerValue.setText(blackout == 0 ? "ON" : "OFF");
 

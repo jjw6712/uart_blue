@@ -294,7 +294,7 @@ public class OptionActivity extends AppCompatActivity {
     }
 
     // 체크섬을 계산하는 메소드
-    private byte calculateChecksum(byte[] data) {
+    public byte calculateChecksum(byte[] data) {
         byte checksum = 0;
         for (byte b : data) {
             checksum ^= b; // XOR 연산
