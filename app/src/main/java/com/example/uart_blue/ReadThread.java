@@ -43,6 +43,9 @@ public class ReadThread extends Thread {
     private SerialPort mSerialPort;
     protected OutputStream mOutputStream;
 
+    private long lastSaveTime = System.currentTimeMillis(); // 마지막 저장 시간 초기화
+    private final long SAVE_INTERVAL = 1000; // 데이터 저장 간격 (1초)
+
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
         void onReceiveData(String data);
@@ -118,10 +121,8 @@ public class ReadThread extends Thread {
             // 패킷에서 데이터 추출
             byte stx = packet[0];
             byte cmd = packet[1];
-            //byte cnt = packet[2];
             int pressure = ((packet[2] & 0xFF) << 8) | (packet[3] & 0xFF);
             int waterLevel = ((packet[4] & 0xFF) << 8) | (packet[5] & 0xFF);
-            //int humidity = packet[7];
             int battery = packet[6];
             int drive = packet[6];
             int stop = packet[6];
@@ -132,9 +133,9 @@ public class ReadThread extends Thread {
             String timestamp = dateFormat.format(new Date());
             int wh = 0;
             String logEntry = String.format(
-                    "(%s, %d, %d) (%d, %d, %d, %d, %d)",
+                    "%s, %d, %d, %d, %d, %d, %d, %d, %d",
                     timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
-                    //cnt,
+                    localCounter,
                     pressure, // 수압
                     waterLevel, // 수위
                     //humidity, // 습도
@@ -147,10 +148,13 @@ public class ReadThread extends Thread {
             );
 
             logEntries.append(logEntry + "\n");
-            // 로컬 카운터가 1000에 도달하면 로그 데이터를 FileSaveThread에 전달하고 로그 기록 초기화
-            if (localCounter >= 1000) {
-                fileSaveThread.addData(logEntries.toString());
-                logEntries.setLength(0);
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastSaveTime >= SAVE_INTERVAL) { // 지정된 시간 간격(1초)이 경과했는지 확인
+                if (logEntries.length() > 0) { // 로그 데이터가 있을 경우에만 저장
+                    fileSaveThread.addData(logEntries.toString());
+                    logEntries.setLength(0); // 로그 기록 초기화
+                }
+                lastSaveTime = currentTime; // 마지막 저장 시간 업데이트
                 localCounter = 0;
             }
             // 패킷 처리가 성공했을 때 Broadcast Intent 생성 및 전송

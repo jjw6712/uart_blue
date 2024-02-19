@@ -111,18 +111,6 @@ public class FileManager {
         }
     }
 
-    public static void compressFilesInBackground(Context context, List<Uri> fileUris, Uri outputZipUri) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.execute(() -> {
-            combineAndZipFiles(context, fileUris, outputZipUri);
-            Log.d("FileManager", "파일 압축이 백그라운드에서 완료되었습니다.");
-            // 필요한 경우, UI 스레드에서 작업을 수행하기 위해 Handler를 사용할 수 있습니다.
-            // new Handler(Looper.getMainLooper()).post(() -> {
-            //     // UI 업데이트 작업...
-            // });
-        });
-        executor.shutdown(); // 작업 완료 후 ExecutorService 종료
-    }
     public static void compressFile(Context context, Uri inputFileUri, Uri outputZipUri) {
         try (InputStream inputStream = context.getContentResolver().openInputStream(inputFileUri);
              ZipOutputStream zos = new ZipOutputStream(new BufferedOutputStream(context.getContentResolver().openOutputStream(outputZipUri)))) {
