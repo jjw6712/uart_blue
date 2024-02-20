@@ -30,8 +30,8 @@ import android_serialport_api.SerialPort;
 public class ReadThread extends Thread {
     private static final String TAG = "UART_Logging";
     private Context context; // Context 변수 추가
-    private static final int PACKET_SIZE = 9; // 14바이트 패킷 (새로운 필드 포함)
-    private static final byte STX = 0x02;  // 시작 바이트
+    private static final int PACKET_SIZE = 8; // 14바이트 패킷 (새로운 필드 포함)
+    private static final byte STX = 0x021;  // 시작 바이트
     private static final byte ETX = 0x03;  // 종료 바이트
 
     private FileSaveThread fileSaveThread;
@@ -120,14 +120,13 @@ public class ReadThread extends Thread {
         if (packet[PACKET_SIZE - 1] == checksum) {  // 체크섬 검증
             // 패킷에서 데이터 추출
             byte stx = packet[0];
-            byte cmd = packet[1];
-            int pressure = ((packet[2] & 0xFF) << 8) | (packet[3] & 0xFF);
-            int waterLevel = ((packet[4] & 0xFF) << 8) | (packet[5] & 0xFF);
-            int battery = packet[6];
-            int drive = packet[6];
-            int stop = packet[6];
-            int blackout = packet[6];
-            byte etx = packet[7];
+            int pressure = ((packet[1] & 0xFF) << 8) | (packet[2] & 0xFF);
+            int waterLevel = ((packet[3] & 0xFF) << 8) | (packet[4] & 0xFF);
+            int battery = packet[5];
+            int drive = packet[5];
+            int stop = packet[5];
+            int blackout = packet[5];
+            byte etx = packet[6];
             ++localCounter;
             // 현재 시간과 함께 로그 기록 생성
             String timestamp = dateFormat.format(new Date());
