@@ -122,23 +122,39 @@ public class ReadThread extends Thread {
             byte stx = packet[0];
             int pressure = ((packet[1] & 0xFF) << 8) | (packet[2] & 0xFF);
             int waterLevel = ((packet[3] & 0xFF) << 8) | (packet[4] & 0xFF);
-            int battery = packet[5];
-            int drive = packet[5];
-            int stop = packet[5];
-            int blackout = packet[5];
+
+            // 수압, 수위 백분율 계산
+            double pressurePercentage = ((pressure / (double) 0xFFFF) * 100.0);
+            double waterLevelPercentage = ((waterLevel / (double) 0xFFFF) * 100.0);
+
+            // 패킷에서 5번째 바이트를 가져옵니다.
+            byte statusByte = packet[5];
+
+            // battery 값을 추출합니다. (하위 7비트 사용)
+            int battery = statusByte & 0x7F; // 0x7F = 0111 1111
+            // battery 백분율 계산
+            int batteryPercentage = ((statusByte & 0x7F) * 100) / 0x70;
+
+            // drive 상태를 추출합니다. (3번째 비트)
+            int drive = (statusByte & 0x08) >> 3; // 0x08 = 0000 1000
+
+            // stop 상태를 추출합니다. (2번째 비트)
+            int stop = (statusByte & 0x04) >> 2; // 0x04 = 0000 0100
+
+            // blackout 상태를 추출합니다. (1번째 비트)
+            int blackout = (statusByte & 0x01); // 0x01 = 0000 0001
             byte etx = packet[6];
             ++localCounter;
             // 현재 시간과 함께 로그 기록 생성
             String timestamp = dateFormat.format(new Date());
             int wh = 0;
             String logEntry = String.format(
-                    "%s, %d, %d, %d, %d, %d, %d, %d, %d",
+                    "%s, %d, %.1f, %.1f, %d, %d, %d, %d, %d",
                     timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
                     localCounter,
-                    pressure, // 수압
-                    waterLevel, // 수위
-                    //humidity, // 습도
-                    battery, // 배터리 잔량
+                    pressurePercentage, // 수압
+                    waterLevelPercentage, // 수위
+                    batteryPercentage, // 배터리 잔량
                     drive, // 드라이브 상태
                     stop, // 정지 상태
                     wh , // WH 상태

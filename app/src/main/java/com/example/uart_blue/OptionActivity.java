@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -67,12 +68,6 @@ public class OptionActivity extends AppCompatActivity {
 
         EditText beforeTimesEditText = findViewById(R.id.BeforeTimesEditText);
         EditText afterTimesEditText = findViewById(R.id.AfterTimesEditText);
-
-        // 밀리초 단위로 변환
-        //long beforeMillis = beforeSeconds * 1000;
-        //long afterMillis = afterMinutes * 60 * 1000;
-
-
         CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
         checkboxSwitchTest.setOnCheckedChangeListener((buttonView, isChecked) -> {
             // SharedPreferences에 체크박스 상태를 저장합니다.
@@ -174,7 +169,7 @@ public class OptionActivity extends AppCompatActivity {
                         Toast.makeText(OptionActivity.this, "시간은 1시간부터 12시간 사이로 설정해야 합니다.", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    long intervalMillis = intervalHours * 60 * 60 * 1000; // 시간을 밀리초로 변환
+                    long intervalMillis = intervalHours  * 60 * 60 * 1000; //1초파일 삭제 인터벌 시간을 밀리초로 변환
 
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("selectedStorage", selectedStorage);
@@ -193,6 +188,7 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putLong("afterMillis", afterMillis);
                     editor.apply();
 
+                    cancelExistingAlarm(); // 기존 반복 알람 취소
                     // 파일 삭제 작업 스케줄링
                     scheduleFileDeletion(intervalMillis);
 
@@ -411,12 +407,29 @@ public class OptionActivity extends AppCompatActivity {
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         Intent intent = new Intent(this, FileDeletionReceiver.class);
 
-        // PendingIntent에 FLAG_IMMUTABLE을 추가합니다.
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+        // 안드로이드 버전에 따라 PendingIntent에 적절한 플래그 설정
+        final int pendingIntentFlag;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            pendingIntentFlag = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
+        } else {
+            pendingIntentFlag = PendingIntent.FLAG_UPDATE_CURRENT;
+        }
+
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, pendingIntentFlag);
 
         // 반복 알람 설정
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), intervalMillis, pendingIntent);
     }
+    private void cancelExistingAlarm() {
+        Intent intent = new Intent(this, FileDeletionReceiver.class);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        if (pendingIntent != null) {
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            alarmManager.cancel(pendingIntent);
+            pendingIntent.cancel();
+        }
+    }
+
 
     protected void onResume() {
         super.onResume();

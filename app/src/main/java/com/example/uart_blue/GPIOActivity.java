@@ -20,8 +20,10 @@ import android.util.Log;
 import com.example.uart_blue.FileManager.FileManager;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class GPIOActivity {
     private GpioControl gpioControl;
@@ -30,7 +32,9 @@ public class GPIOActivity {
     private OptionActivity optionActivity;
     private Runnable updateGpioStatusRunnable; // Runnable 객체를 멤버 변수로 선언
     Context context;
-    ReadThread readThread;
+    private boolean is138ActivePrev = false;
+    private boolean is139ActivePrev = false;
+    private boolean is28ActivePrev = false;
 
     // 생성자에서 OptionActivity 인스턴스를 받습니다.
     public GPIOActivity(OptionActivity optionActivity, Context context)  {
@@ -80,85 +84,104 @@ public class GPIOActivity {
         boolean is139Active = gpioControl.isGpioActive(139);
         boolean is28Active = gpioControl.isGpioActive(28);
 
-        if (is138Active && isGpioInputEnabled) {
-            // OptionActivity를 통해 ReadThread 시작
-            optionActivity.startReadingDataFromGPIO();
-            // 시리얼 포트를 통해 '1' 데이터를 보냅니다.
-            //optionActivity.sendDataToSerialPort(new byte[]{'1'});
-            // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
-            byte[] startSignal = {0x02, 0x10, 0x03};
-            // 체크섬 계산
-            byte checksum = optionActivity.calculateChecksum(startSignal);
-            // 체크섬을 포함하여 전송할 데이터 생성
-            byte[] dataToSend = new byte[startSignal.length + 1];
-            System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
-            dataToSend[dataToSend.length - 1] = checksum;
-
-            // 준비된 데이터를 시리얼 포트를 통해 전송
-            optionActivity.sendDataToSerialPort(dataToSend);
-
-            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-            intent.putExtra("GPIO_138_ACTIVE", true);
-            context.sendBroadcast(intent);
+        // GPIO 138 핀의 상태 변화 감지 및 처리
+        if (is138Active && !is138ActivePrev && isGpioInputEnabled) {
+            // 스위치가 눌렸다가 떼어진 경우의 로직을 여기에 작성
+            handleGpio138Active();
         }
+        is138ActivePrev = is138Active; // 이전 상태 업데이트
 
-        if (is139Active && isGpioInputEnabled) {
-            // 시리얼 포트를 통해 '0' 데이터를 보냅니다.
-            //optionActivity.sendDataToSerialPort(new byte[]{'0'});
-            // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
-            byte[] startSignal = {0x02, 0x20, 0x03};
-            // 체크섬 계산
-            byte checksum = optionActivity.calculateChecksum(startSignal);
-            // 체크섬을 포함하여 전송할 데이터 생성
-            byte[] dataToSend = new byte[startSignal.length + 1];
-            System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
-            dataToSend[dataToSend.length - 1] = checksum;
-
-            // 준비된 데이터를 시리얼 포트를 통해 전송
-            optionActivity.sendDataToSerialPort(dataToSend);
-            // ReadThread 정지
-            optionActivity.stopReadThread();
-            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-            intent.putExtra("GPIO_139_ACTIVE", true);
-            context.sendBroadcast(intent);
+        // GPIO 139 핀의 상태 변화 감지 및 처리
+        if (is139Active && !is139ActivePrev && isGpioInputEnabled) {
+            // 스위치가 눌렸다가 떼어진 경우의 로직을 여기에 작성
+            handleGpio139Active();
         }
+        is139ActivePrev = is139Active; // 이전 상태 업데이트
 
-        if (is28Active && isGpioInputEnabled) {
-            Log.d(TAG, "GPIO 수격신호 수신");
-            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-            intent.putExtra("GPIO_28_ACTIVE", true);
-            context.sendBroadcast(intent);
-            Date eventTime = new Date(); // 현재 시간을 이벤트 시간으로 가정
-            SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-            String directoryUriString = sharedPreferences.getString("directoryUri", "");
-            long beforeMillis = sharedPreferences.getLong("beforeMillis", 0);
-            long afterMillis = sharedPreferences.getLong("afterMillis", 0);
-
-            // 이벤트 발생 후 대기할 시간 계산
-            long delay = afterMillis;
-
-            if (is28Active && isGpioInputEnabled) {
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    Uri directoryUri = Uri.parse(directoryUriString);
-                    List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
-
-                    if (!filesInRange.isEmpty()) {
-                        // 파일 내용 합치기
-                        String combinedFileName = "combinedText.txt";
-                        Uri combinedFileUri = combineTextFiles(context, filesInRange, combinedFileName);
-
-                        if (combinedFileUri != null) {
-                            // 합쳐진 파일을 ZIP 파일로 압축
-                            Uri outputZipUri = FileManager.createOutputZipUri(context, directoryUri, "combined.zip");
-                            compressFile(context, combinedFileUri, outputZipUri);
-                        }
-                    } else {
-                        Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
-                    }
-                }, delay);
-            }
-
+        // GPIO 28 핀의 상태 변화 감지 및 처리
+        if (is28Active && !is28ActivePrev && isGpioInputEnabled) {
+            // 스위치가 눌렸다가 떼어진 경우의 로직을 여기에 작성
+            handleGpio28Active();
         }
+        is28ActivePrev = is28Active; // 이전 상태 업데이트
     }
 
-}
+    private void handleGpio138Active() {
+        // GPIO 138 핀 활성화 시 실행할 로직
+        // OptionActivity를 통해 ReadThread 시작
+        optionActivity.startReadingDataFromGPIO();
+        // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
+        byte[] startSignal = {0x02, 0x10, 0x03};
+        // 체크섬 계산
+        byte checksum = optionActivity.calculateChecksum(startSignal);
+        // 체크섬을 포함하여 전송할 데이터 생성
+        byte[] dataToSend = new byte[startSignal.length + 1];
+        System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
+        dataToSend[dataToSend.length - 1] = checksum;
+
+        // 준비된 데이터를 시리얼 포트를 통해 전송
+        optionActivity.sendDataToSerialPort(dataToSend);
+
+        Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+        intent.putExtra("GPIO_138_ACTIVE", true);
+        context.sendBroadcast(intent);
+    }
+
+    private void handleGpio139Active() {
+        // GPIO 139 핀 활성화 시 실행할 로직
+        // 정지 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
+        byte[] startSignal = {0x02, 0x20, 0x03};
+        // 체크섬 계산
+        byte checksum = optionActivity.calculateChecksum(startSignal);
+        // 체크섬을 포함하여 전송할 데이터 생성
+        byte[] dataToSend = new byte[startSignal.length + 1];
+        System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
+        dataToSend[dataToSend.length - 1] = checksum;
+
+        // 준비된 데이터를 시리얼 포트를 통해 전송
+        optionActivity.sendDataToSerialPort(dataToSend);
+        // ReadThread 정지
+        optionActivity.stopReadThread();
+        Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+        intent.putExtra("GPIO_139_ACTIVE", true);
+        context.sendBroadcast(intent);
+    }
+
+    private void handleGpio28Active() {
+        // GPIO 28 핀 활성화 시 실행할 로직
+        Log.d(TAG, "GPIO 수격신호 수신");
+        Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+        intent.putExtra("GPIO_28_ACTIVE", true);
+        context.sendBroadcast(intent);
+        Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        String directoryUriString = sharedPreferences.getString("directoryUri", "");
+        long beforeMillis = sharedPreferences.getLong("beforeMillis", 0);
+        long afterMillis = sharedPreferences.getLong("afterMillis", 0);
+
+        // 이벤트 발생 후 대기할 시간 계산
+        long delay = afterMillis;
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                Uri directoryUri = Uri.parse(directoryUriString);
+                List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
+
+                if (!filesInRange.isEmpty()) {
+                    // eventTime을 기반으로 파일 이름 생성
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
+                    String eventDateTime = sdf.format(eventTime); // 이벤트 시간을 기반으로 형식화된 날짜/시간 문자열
+                    String combinedFileName = eventDateTime + ".txt"; // 텍스트 파일 이름
+                    Uri combinedFileUri = combineTextFiles(context, filesInRange, combinedFileName);
+
+                    if (combinedFileUri != null) {
+                        // 합쳐진 파일을 ZIP 파일로 압축, 파일 이름에 이벤트 날짜와 시간 포함
+                        String zipFileName = eventDateTime + ".zip"; // ZIP 파일 이름
+                        Uri outputZipUri = FileManager.createOutputZipUri(context, directoryUri, zipFileName);
+                        compressFile(context, combinedFileUri, outputZipUri);
+                    }
+                } else {
+                    Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
+                }
+            }, delay);
+    }
+
+    }
