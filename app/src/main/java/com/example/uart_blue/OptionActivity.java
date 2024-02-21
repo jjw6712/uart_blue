@@ -1,5 +1,7 @@
 package com.example.uart_blue;
 
+import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
+
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -13,6 +15,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -25,6 +29,9 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.documentfile.provider.DocumentFile;
+
+import com.example.uart_blue.FileManager.FileManager;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -52,6 +59,8 @@ public class OptionActivity extends AppCompatActivity {
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
     // 멤버 변수로 GPIOActivity 참조를 유지합니다.
     private GPIOActivity gpioActivity;
+    private final Handler handler = new Handler();
+    private Runnable fileDeletionRunnable;
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint("RestrictedApi")
@@ -187,10 +196,8 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putLong("beforeMillis", beforeMillis);
                     editor.putLong("afterMillis", afterMillis);
                     editor.apply();
-
-                    cancelExistingAlarm(); // 기존 반복 알람 취소
                     // 파일 삭제 작업 스케줄링
-                    scheduleFileDeletion(intervalMillis);
+                    scheduleFileDeletionWithHandler(intervalMillis);
 
                     // MainActivity로 이동
                     Intent intent = new Intent(OptionActivity.this, MainActivity.class);
@@ -286,6 +293,44 @@ public class OptionActivity extends AppCompatActivity {
                 // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
                 readThread.stopThreads();
             }
+        });
+
+        Button sendButton2 = findViewById(R.id.btwh);
+        sendButton2.setOnClickListener(v -> {
+            Log.d(TAG, "GPIO 수격신호 수신");
+            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+            intent.putExtra("GPIO_28_ACTIVE", true);
+            this.sendBroadcast(intent);
+            Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
+            SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+            String directoryUriString = sharedPreferences.getString("directoryUri", "");
+            long beforeMillis = sharedPreferences.getLong("beforeMillis", 0);
+            long afterMillis = sharedPreferences.getLong("afterMillis", 0);
+
+            // 이벤트 발생 후 대기할 시간 계산
+            long delay = afterMillis;
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                Uri directoryUri = Uri.parse(directoryUriString);
+                List<Uri> filesInRange = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
+
+                if (!filesInRange.isEmpty()) {
+                    // eventTime을 기반으로 파일 이름 생성
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
+                    String eventDateTime = sdf.format(eventTime);
+                    String combinedFileName = eventDateTime + ".txt";
+                    Uri combinedFileUri = FileManager.combineTextFilesInRange(this, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
+
+                    if (combinedFileUri != null) {
+                        String zipFileName = eventDateTime + ".zip";
+                        Uri outputZipUri = FileManager.createOutputZipUri(this, directoryUri, zipFileName);
+                        FileManager.compressFile(this, combinedFileUri, outputZipUri);
+                        Log.d(TAG, "파일이 성공적으로 압축되었습니다.");
+                    }
+                } else {
+                    Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
+                }
+            }, delay);
+
         });
     }
 
@@ -403,30 +448,43 @@ public class OptionActivity extends AppCompatActivity {
         }
     }
 
-    private void scheduleFileDeletion(long intervalMillis) {
-        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        Intent intent = new Intent(this, FileDeletionReceiver.class);
+    private void scheduleFileDeletionWithHandler(long intervalMillis) {
+        // 기존 작업이 있다면 취소
+        cancelScheduledDeletion();
 
-        // 안드로이드 버전에 따라 PendingIntent에 적절한 플래그 설정
-        final int pendingIntentFlag;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            pendingIntentFlag = PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT;
-        } else {
-            pendingIntentFlag = PendingIntent.FLAG_UPDATE_CURRENT;
-        }
+        fileDeletionRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // SharedPreferences에서 디렉토리 URI 가져오기
+                SharedPreferences prefs = getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+                String directoryUriStr = prefs.getString("directoryUri", "");
+                if (!directoryUriStr.isEmpty()) {
+                    Uri directoryUri = Uri.parse(directoryUriStr);
+                    deleteWHDataDirectory(directoryUri); // 파일 삭제 로직 실행
+                }
 
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, pendingIntentFlag);
+                // 다음 실행을 위해 자기 자신을 다시 스케줄
+                handler.postDelayed(this, intervalMillis);
+            }
+        };
 
-        // 반복 알람 설정
-        alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), intervalMillis, pendingIntent);
+        // 최초 실행 스케줄
+        handler.postDelayed(fileDeletionRunnable, intervalMillis);
     }
-    private void cancelExistingAlarm() {
-        Intent intent = new Intent(this, FileDeletionReceiver.class);
-        PendingIntent pendingIntent = PendingIntent.getBroadcast(this, 0, intent, PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
-        if (pendingIntent != null) {
-            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            alarmManager.cancel(pendingIntent);
-            pendingIntent.cancel();
+
+    private void deleteWHDataDirectory(Uri directoryUri) {
+        DocumentFile directory = DocumentFile.fromTreeUri(this, directoryUri);
+        if (directory != null && directory.isDirectory()) {
+            DocumentFile whDataDirectory = directory.findFile("W.H.Data");
+            if (whDataDirectory != null && whDataDirectory.isDirectory()) {
+                whDataDirectory.delete(); // "W.H.Data" 폴더 삭제
+            }
+        }
+    }
+
+    private void cancelScheduledDeletion() {
+        if (fileDeletionRunnable != null) {
+            handler.removeCallbacks(fileDeletionRunnable);
         }
     }
 

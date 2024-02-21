@@ -22,6 +22,11 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import android.content.Context;
 import android.util.Log;
 
@@ -45,6 +50,8 @@ public class ReadThread extends Thread {
 
     private long lastSaveTime = System.currentTimeMillis(); // 마지막 저장 시간 초기화
     private final long SAVE_INTERVAL = 1000; // 데이터 저장 간격 (1초)
+    private ConcurrentLinkedQueue<byte[]> packetQueue = new ConcurrentLinkedQueue<>();
+    private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -64,6 +71,7 @@ public class ReadThread extends Thread {
             mSerialPort = new SerialPort(new File(portPath), baudRate, 0);
             mInputStream = mSerialPort.getInputStream();
             mOutputStream = mSerialPort.getOutputStream();
+            startPacketProcessing(); // 패킷 처리 시작
         } catch (IOException e) {
             Log.e(TAG, "Error opening serial port: " + e.getMessage());
             handleError(e);
@@ -83,33 +91,49 @@ public class ReadThread extends Thread {
     }
     @Override
     public void run() {
-        byte[] buffer = new byte[PACKET_SIZE];
-        int bufferIndex = 0;
-
         while (!isInterrupted()) {
             try {
                 if (mInputStream == null) return;
 
-                int data = mInputStream.read();  // 1바이트 읽기
-                if (data == -1) continue;  // 데이터가 없으면 계속
+                int data = mInputStream.read();
+                if (data == -1) continue;
 
                 byte readByte = (byte) data;
-                //Log.d(TAG, "run: "+bytesToHex(buffer));
-                if (readByte == STX && bufferIndex == 0) {  // 패킷 시작 바이트(STX)를 만나면
-                    buffer[bufferIndex++] = readByte;  // STX 저장
-                } else if (bufferIndex > 0 && bufferIndex < PACKET_SIZE) {
-                    buffer[bufferIndex++] = readByte;  // 패킷 데이터 저장
-                    if (bufferIndex == PACKET_SIZE && buffer[PACKET_SIZE - 2] == ETX) {
-                        processPacket(buffer);  // 패킷 처리
-                        //Log.d(TAG, "run: "+bytesToHex(buffer));
-                        bufferIndex = 0;  // 버퍼 인덱스 초기화
+                byte[] packet = new byte[PACKET_SIZE]; // 패킷 초기화
+                //Log.d(TAG, "run: "+bytesToHex(packet));
+                if (readByte == STX) {
+                    packet[0] = readByte;
+                    int count = 1;
+                    while (count < PACKET_SIZE) { // 패킷 채우기
+                        data = mInputStream.read();
+                        if (data == -1) break;
+                        packet[count++] = (byte) data;
                     }
-                } else {
-                    bufferIndex = 0;  // 인덱스 초기화
+                    if (packet[PACKET_SIZE - 2] == ETX) {
+                        if(packetQueue !=null) packetQueue.offer(packet.clone()); // 패킷 큐에 추가
+                    }
                 }
             } catch (IOException e) {
                 handleError(e);
-                bufferIndex = 0;  // 오류 발생 시 인덱스 초기화
+            }
+        }
+    }
+
+    private void startPacketProcessing() {
+        final Runnable processor = new Runnable() {
+            public void run() {
+                processPackets();
+            }
+        };
+        scheduler.scheduleAtFixedRate(processor, 0, 1, TimeUnit.SECONDS);
+    }
+
+    private void processPackets() {
+        int packetsToProcess = Math.min(1000, packetQueue.size());
+        for (int i = 0; i < packetsToProcess; i++) {
+            byte[] packet = packetQueue.poll();
+            if (packet != null) {
+                processPacket(packet);
             }
         }
     }
@@ -123,9 +147,9 @@ public class ReadThread extends Thread {
             int pressure = ((packet[1] & 0xFF) << 8) | (packet[2] & 0xFF);
             int waterLevel = ((packet[3] & 0xFF) << 8) | (packet[4] & 0xFF);
 
-            // 수압, 수위 백분율 계산
-            double pressurePercentage = ((pressure / (double) 0xFFFF) * 100.0);
-            double waterLevelPercentage = ((waterLevel / (double) 0xFFFF) * 100.0);
+            // 수압과 수위 백분율 계산
+            double pressurePercentage = calculatePercentageFromADC(pressure);
+            double waterLevelPercentage = calculatePercentageFromADC(waterLevel);
 
             // 패킷에서 5번째 바이트를 가져옵니다.
             byte statusByte = packet[5];
@@ -133,7 +157,7 @@ public class ReadThread extends Thread {
             // battery 값을 추출합니다. (하위 7비트 사용)
             int battery = statusByte & 0x7F; // 0x7F = 0111 1111
             // battery 백분율 계산
-            int batteryPercentage = ((statusByte & 0x7F) * 100) / 0x70;
+            int batteryPercentage = (battery * 123) / 0x7F;
 
             // drive 상태를 추출합니다. (3번째 비트)
             int drive = (statusByte & 0x08) >> 3; // 0x08 = 0000 1000
@@ -144,14 +168,14 @@ public class ReadThread extends Thread {
             // blackout 상태를 추출합니다. (1번째 비트)
             int blackout = (statusByte & 0x01); // 0x01 = 0000 0001
             byte etx = packet[6];
-            ++localCounter;
+
             // 현재 시간과 함께 로그 기록 생성
             String timestamp = dateFormat.format(new Date());
             int wh = 0;
             String logEntry = String.format(
-                    "%s, %d, %.1f, %.1f, %d, %d, %d, %d, %d",
+                    "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d",
                     timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
-                    localCounter,
+                    ++localCounter,
                     pressurePercentage, // 수압
                     waterLevelPercentage, // 수위
                     batteryPercentage, // 배터리 잔량
@@ -164,7 +188,7 @@ public class ReadThread extends Thread {
 
             logEntries.append(logEntry + "\n");
             long currentTime = System.currentTimeMillis();
-            if (currentTime - lastSaveTime >= SAVE_INTERVAL) { // 지정된 시간 간격(1초)이 경과했는지 확인
+            if (localCounter >= 1000) { // 지정된 시간 간격(1초)이 경과했는지 확인
                 if (logEntries.length() > 0) { // 로그 데이터가 있을 경우에만 저장
                     fileSaveThread.addData(logEntries.toString());
                     logEntries.setLength(0); // 로그 기록 초기화
@@ -218,19 +242,49 @@ public class ReadThread extends Thread {
         }
         return sb.toString().trim();
     }
+    private double calculatePercentageFromADC(int adcValue) {
+        // ADC 값의 최소 및 최대 범위 설정
+        int minADCValue = 8191;    // 0.4V에 해당
+        double maxADCValue = 40400;   // 2V에 해당
 
+        // 최소값을 기준으로 한 값의 조정
+        double adjustedValue = adcValue - minADCValue;
+        double range = maxADCValue - minADCValue;
+
+        // 조정된 값으로 백분율 계산
+        double percentage = (adjustedValue / range) * 100.0;
+
+        // 결과가 0% 미만이면 0%로, 100% 초과면 100%로 조정
+        percentage = Math.max(0, Math.min(percentage, 100.0));
+
+        return percentage;
+    }
     // ReadThread와 FileSaveThread를 정지하는 메소드
     public void stopThreads() {
         // ReadThread 중단
         interrupt();
         clearBuffer(); // 버퍼 초기화
+
         // FileSaveThread 중단
         if (fileSaveThread != null) {
             fileSaveThread.stopSaving();  // FileSaveThread에 중단 신호 보내기
             fileSaveThread.interrupt();   // FileSaveThread 중단
             fileSaveThread = null;        // 참조 해제
         }
-        Log.d(TAG, "ReadThread and FileSaveThread stopped");
+
+        // packetQueue 비우기
+        if (packetQueue != null) {
+            packetQueue.clear(); // packetQueue의 모든 요소 제거
+            packetQueue = null;  // 참조 해제
+        }
+
+        // scheduler 종료
+        if (scheduler != null) {
+            scheduler.shutdownNow(); // 진행 중인 모든 작업을 중단하고 스레드 풀을 종료
+            scheduler = null;        // 참조 해제
+        }
+
+        Log.d(TAG, "ReadThread, FileSaveThread, and scheduler stopped");
     }
 }
 

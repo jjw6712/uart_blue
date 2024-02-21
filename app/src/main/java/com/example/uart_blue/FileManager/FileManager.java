@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,7 +28,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public class FileManager {
+    private static final String TAG = "파일압축매니저";
+
     public static List<Uri> findFilesInRange(Context context, Uri directoryUri, Date eventTime, long beforeMillis, long afterMillis) {
+        Log.d(TAG, "eventTime: "+eventTime+"beforeMillis"+beforeMillis+"afterMillis"+afterMillis);
         List<Uri> matchedFiles = new ArrayList<>();
         // 날짜 형식을 "yyyy-MM-dd-HH-mm-ss"로 수정
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss", Locale.getDefault());
@@ -42,10 +46,8 @@ public class FileManager {
                         // 파일 이름에서 날짜 부분만 추출
                         String dateString = fileName.substring(fileName.indexOf('-') + 1, fileName.lastIndexOf('.'));
                         Date fileDate = format.parse(dateString);
-
                         if (fileDate != null) {
-                            long diff = eventTime.getTime() - fileDate.getTime();
-                            if (diff >= -beforeMillis && diff <= afterMillis) {
+                            if (fileDate.after(new Date(eventTime.getTime() - beforeMillis)) && fileDate.before(new Date(eventTime.getTime() + afterMillis))) {
                                 matchedFiles.add(file.getUri());
                             }
                         }
@@ -55,39 +57,8 @@ public class FileManager {
                 }
             }
         }
+        Log.d(TAG, "matchedFiles: "+matchedFiles);
         return matchedFiles;
-    }
-
-
-
-    public static void combineAndZipFiles(Context context, List<Uri> fileUris, Uri outputZipUri) {
-        Log.d("FileManager", "파일 압축을 시작합니다.");
-        byte[] buffer = new byte[1024];
-
-        try {
-            OutputStream outputStream = context.getContentResolver().openOutputStream(outputZipUri);
-            ZipOutputStream zos = new ZipOutputStream(outputStream);
-
-            for (Uri fileUri : fileUris) {
-                DocumentFile file = DocumentFile.fromSingleUri(context, fileUri);
-                if (file != null) {
-                    ZipEntry zipEntry = new ZipEntry(file.getName());
-                    zos.putNextEntry(zipEntry);
-                    try (InputStream inputStream = context.getContentResolver().openInputStream(fileUri)) {
-                        int length;
-                        while ((length = inputStream.read(buffer)) > 0) {
-                            zos.write(buffer, 0, length);
-                        }
-                        zos.closeEntry();
-                    } catch (IOException e) {
-                        Log.e("FileManager", "Error zipping file: " + file.getName(), e);
-                    }
-                }
-            }
-            zos.close();
-        } catch (IOException e) {
-            Log.e("FileManager", "Error creating zip file: ", e);
-        }
     }
 
     public static Uri createOutputZipUri(Context context, Uri directoryUri, String fileName) {
@@ -126,32 +97,52 @@ public class FileManager {
         }
     }
 
-    public static Uri combineTextFiles(Context context, List<Uri> fileUris, String combinedFileName) {
+    public static Uri combineTextFilesInRange(Context context, List<Uri> fileUris, String combinedFileName, Date eventTime, long beforeMillis, long afterMillis) {
         StringBuilder combinedContent = new StringBuilder();
+        // 날짜 형식을 변경하여 각 행의 정확한 날짜와 시간을 파싱할 수 있도록 함
+        SimpleDateFormat format = new SimpleDateFormat("yyyy, MM, dd, HH, mm, ss, SSS", Locale.getDefault());
+
+        // eventTime 기준으로 실제 시간 범위 계산
+        long startTime = eventTime.getTime() - beforeMillis;
+        long endTime = eventTime.getTime() + afterMillis;
+
         for (Uri fileUri : fileUris) {
             try (InputStream inputStream = context.getContentResolver().openInputStream(fileUri);
                  BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    combinedContent.append(line).append(System.lineSeparator());
+                    try {
+                        // 각 행의 날짜와 시간 정보 파싱
+                        Date lineDate = format.parse(line.substring(0, line.lastIndexOf(',')));
+                        if (lineDate != null && lineDate.getTime() >= startTime && lineDate.getTime() <= endTime) {
+                            // 해당 범위 내 데이터만 combinedContent에 추가
+                            combinedContent.append(line).append(System.lineSeparator());
+                        }
+                    } catch (ParseException e) {
+                        Log.e("FileManager", "Error parsing date in file: " + fileUri, e);
+                    }
                 }
             } catch (IOException e) {
                 Log.e("FileManager", "Error reading file: " + fileUri, e);
             }
         }
 
-        // 임시 파일에 내용 저장
-        try {
+        // combinedContent에 저장된 내용을 실제 파일로 쓰기
+        if (combinedContent.length() > 0) {
             File combinedFile = new File(context.getCacheDir(), combinedFileName);
             try (FileWriter writer = new FileWriter(combinedFile)) {
                 writer.write(combinedContent.toString());
+                return Uri.fromFile(combinedFile);
+            } catch (IOException e) {
+                Log.e("FileManager", "Error writing combined file", e);
+                return null;
             }
-            return Uri.fromFile(combinedFile);
-        } catch (IOException e) {
-            Log.e("FileManager", "Error writing combined file", e);
-            return null;
         }
+
+        return null;
     }
+
+
 
 }
 

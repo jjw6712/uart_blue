@@ -198,6 +198,14 @@
                         android:layout_below="@+id/btstart"
                         android:layout_marginStart="500dp"
                         />
+                    <Button
+                        android:id="@+id/btwh"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="정지"
+                        android:layout_below="@+id/btstop"
+                        android:layout_marginStart="500dp"
+                        />
                     <CheckBox
                         android:id="@+id/checkboxSwitchTest"
                         android:layout_width="wrap_content"
