@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">uart_blue</string>
+    <string-array name="sensor_types">
+        <item>5kg</item>
+        <item>20kg</item>
+        <item>30kg</item>
+        <item>100kg</item>
+    </string-array>
 </resources>

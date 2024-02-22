@@ -20,9 +20,12 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -61,6 +64,7 @@ public class OptionActivity extends AppCompatActivity {
     private GPIOActivity gpioActivity;
     private final Handler handler = new Handler();
     private Runnable fileDeletionRunnable;
+    Spinner SensorTypeSpinner;
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint("RestrictedApi")
@@ -70,6 +74,33 @@ public class OptionActivity extends AppCompatActivity {
         setContentView(R.layout.activity_option);
         checkStoragePermission();
 
+        // Initialize the spinner
+        Spinner sensorTypeSpinner = findViewById(R.id.SensorTypeSpinner);
+
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.sensor_types, android.R.layout.simple_spinner_item);
+
+        // Specify the layout to use when the list of choices appears
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        // Apply the adapter to the spinner
+        sensorTypeSpinner.setAdapter(adapter);
+
+        // Set the spinner click listener
+        sensorTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                // An item was selected. You can retrieve the selected item using
+                String selectedItem = parent.getItemAtPosition(position).toString();
+                Toast.makeText(OptionActivity.this, "Selected: " + selectedItem, Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Another interface callback
+            }
+        });
 
 
         // GPIOActivity 인스턴스 생성 또는 가져오기
