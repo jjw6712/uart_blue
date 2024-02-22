@@ -78,14 +78,14 @@ public class OptionActivity extends AppCompatActivity {
         Spinner sensorTypeSpinner = findViewById(R.id.SensorTypeSpinner);
 
         // Create an ArrayAdapter using the string array and a default spinner layout
-        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+        ArrayAdapter<CharSequence> sensoradapter = ArrayAdapter.createFromResource(this,
                 R.array.sensor_types, android.R.layout.simple_spinner_item);
 
         // Specify the layout to use when the list of choices appears
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sensoradapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
         // Apply the adapter to the spinner
-        sensorTypeSpinner.setAdapter(adapter);
+        sensorTypeSpinner.setAdapter(sensoradapter);
 
         // Set the spinner click listener
         sensorTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -105,14 +105,14 @@ public class OptionActivity extends AppCompatActivity {
         Spinner timeSpinner = findViewById(R.id.TimesSpinner);
 
         // Create an ArrayAdapter using the string array and a default spinner layout
-        adapter = ArrayAdapter.createFromResource(this,
+        ArrayAdapter<CharSequence> timeadapter = ArrayAdapter.createFromResource(this,
                 R.array.times, android.R.layout.simple_spinner_item);
 
         // Specify the layout to use when the list of choices appears
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        timeadapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
         // Apply the adapter to the spinner
-        sensorTypeSpinner.setAdapter(adapter);
+        sensorTypeSpinner.setAdapter(timeadapter);
 
         // Set the spinner click listener
         sensorTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
