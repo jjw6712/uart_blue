@@ -17,6 +17,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -64,7 +66,9 @@ public class OptionActivity extends AppCompatActivity {
     private GPIOActivity gpioActivity;
     private final Handler handler = new Handler();
     private Runnable fileDeletionRunnable;
-    Spinner SensorTypeSpinner;
+
+    private EditText pressEditText;
+    private double maxPressure;
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint("RestrictedApi")
@@ -93,7 +97,7 @@ public class OptionActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 // An item was selected. You can retrieve the selected item using
                 String selectedItem = parent.getItemAtPosition(position).toString();
-                Toast.makeText(OptionActivity.this, "Selected: " + selectedItem, Toast.LENGTH_SHORT).show();
+                updatePressureLimits(selectedItem);
             }
 
             @Override
@@ -129,7 +133,7 @@ public class OptionActivity extends AppCompatActivity {
             }
         });
 
-
+        pressEditText = findViewById(R.id.PressEditText);
         // GPIOActivity 인스턴스 생성 또는 가져오기
         gpioActivity = new GPIOActivity(this, OptionActivity.this);
 
@@ -292,8 +296,39 @@ public class OptionActivity extends AppCompatActivity {
                 startActivityForResult(intent, REQUEST_DIRECTORY_PICKER);
             }
         });
+        pressEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // Not used
+            }
 
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Not used
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (!s.toString().isEmpty()) {
+                    double value = Double.parseDouble(s.toString());
+                    if (value < 0.1 || value > maxPressure) {
+                        pressEditText.setError("값은 0.1kg과 " + maxPressure + "kg 사이여야 합니다.");
+                    } else {
+                        pressEditText.setError(null);
+                    }
+                }
+            }
+        });
     }
+
+    private void updatePressureLimits(String sensorType) {
+        int sensorMaxKg = Integer.parseInt(sensorType.replace("kg", ""));
+        maxPressure = sensorMaxKg * 0.8; // Set to 80% of the sensor's maximum capacity
+        // Optionally, update EditText hint or other UI elements to show the limit
+        pressEditText.setHint("Enter value (0.1 - " + maxPressure + " kg)");
+    }
+
+
 
     /*private void setupButtons() {
         Button sendButton1 = findViewById(R.id.buttonSend1);
