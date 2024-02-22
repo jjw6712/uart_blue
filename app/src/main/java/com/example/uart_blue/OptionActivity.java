@@ -101,6 +101,33 @@ public class OptionActivity extends AppCompatActivity {
                 // Another interface callback
             }
         });
+        // Initialize the spinner
+        Spinner timeSpinner = findViewById(R.id.TimesSpinner);
+
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        adapter = ArrayAdapter.createFromResource(this,
+                R.array.times, android.R.layout.simple_spinner_item);
+
+        // Specify the layout to use when the list of choices appears
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        // Apply the adapter to the spinner
+        sensorTypeSpinner.setAdapter(adapter);
+
+        // Set the spinner click listener
+        sensorTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                // An item was selected. You can retrieve the selected item using
+                String selectedItem = parent.getItemAtPosition(position).toString();
+                Toast.makeText(OptionActivity.this, "Selected: " + selectedItem, Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Another interface callback
+            }
+        });
 
 
         // GPIOActivity 인스턴스 생성 또는 가져오기
