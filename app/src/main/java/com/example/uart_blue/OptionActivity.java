@@ -112,10 +112,10 @@ public class OptionActivity extends AppCompatActivity {
         timeadapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 
         // Apply the adapter to the spinner
-        sensorTypeSpinner.setAdapter(timeadapter);
+        timeSpinner.setAdapter(timeadapter);
 
         // Set the spinner click listener
-        sensorTypeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        timeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 // An item was selected. You can retrieve the selected item using
