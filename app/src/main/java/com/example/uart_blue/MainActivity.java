@@ -1,9 +1,12 @@
 package com.example.uart_blue;
 
+import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -11,14 +14,19 @@ import android.os.Handler;
 import android.os.StatFs;
 import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import com.example.uart_blue.Network.NetworkStateReceiver;
 
 import java.io.File;
 import java.util.List;
@@ -28,16 +36,21 @@ public class MainActivity extends AppCompatActivity {
     private StringBuilder usbInfo;
     private StringBuilder displayInfo;
     private String SelectDevice = "";
-    private static final String TAG = "MyTag";
     private TextView textViewUSBStorageInfo;
     private ImageButton buttonOption;
     private final Handler handler = new Handler();
     private TextView tvStop, tvDrive, tvWH;
+    private NetworkStateReceiver networkStateReceiver;
+    private boolean isReceiverRegistered = false;
+    int wh;
+    SharedPreferences sharedPreferences;
+    private SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener;
+    TextView textViewWHCounterValue;
     private final Runnable runnable = new Runnable() {
         @Override
         public void run() {
             updateUSBStorageInfo();
-            //handler.postDelayed(this, 1000); // 10초마다 실행
+            handler.postDelayed(this,  60 * 1000); // 60초마다 실행
         }
     };
 
@@ -45,90 +58,97 @@ public class MainActivity extends AppCompatActivity {
     private final BroadcastReceiver updateUIReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // Intent에서 데이터를 추출합니다.
-            int wh = intent.getIntExtra("wh", 0);
-            //int humidity = intent.getIntExtra("humidity", 0);
+
+
             int battery = intent.getIntExtra("battery", 0);
             int blackout = intent.getIntExtra("blackout", 0);
 
-            // 추출된 데이터를 UI에 반영합니다.
-            TextView textViewWHCounterValue = findViewById(R.id.textViewWHCounterValue);
-            TextView textViewHumidityValue = findViewById(R.id.textViewHuminityValue);
             TextView textViewInnerBatteryValue = findViewById(R.id.textViewInnerBaterryValue);
             TextView textViewEternalPowerValue = findViewById(R.id.textViewEternalPowerValue);
 
-            textViewWHCounterValue.setText(String.valueOf(wh));
-            //textViewHumidityValue.setText(String.format("%d%%", humidity));
-            textViewInnerBatteryValue.setText(String.format("%d", battery));
+            textViewInnerBatteryValue.setText(String.format("%d%%", battery));
             textViewEternalPowerValue.setText(blackout == 0 ? "ON" : "OFF");
 
-            tvStop = findViewById(R.id.tvStop);
-            tvDrive = findViewById(R.id.tvDrive);
-            tvWH = findViewById(R.id.tvWH);
-            //GPIO 동작 상태 체크를 위해 GPIOActivity에서 각 핀들의 활
-            boolean is138Active = intent.getBooleanExtra("GPIO_138_ACTIVE", false);
-            boolean is139Active = intent.getBooleanExtra("GPIO_139_ACTIVE", false);
-            boolean is28Active = intent.getBooleanExtra("GPIO_28_ACTIVE", false);
-            if(is138Active) {
-                // GPIO 138이 활성화되었을 때의 동작 (TextView 활성화 등)
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        tvDrive.setVisibility(View.VISIBLE);
-                        tvStop.setVisibility(View.INVISIBLE);
-                        tvWH.setVisibility(View.INVISIBLE);
-                    }
-                });
-            }
-            if(is139Active){
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        tvStop.setVisibility(View.VISIBLE);
-                        tvDrive.setVisibility(View.INVISIBLE);
-                        tvWH.setVisibility(View.INVISIBLE);
-                    }
-                });
-            }
-            if(is28Active){
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        tvWH.setVisibility(View.VISIBLE);
-                    }
-                });
-            }
         }
     };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        // 네트워크 상태 변경을 감지하기 위한 BroadcastReceiver 등록
+        if (networkStateReceiver == null) {
+            networkStateReceiver = new NetworkStateReceiver();
+        }
+        LocalBroadcastManager.getInstance(this).registerReceiver(uiUpdateReceiver,
+                new IntentFilter("com.example.uart_blue.UPDATE_UI_STATE"));
 
+
+
+        tvStop = findViewById(R.id.tvStop);
+        tvDrive = findViewById(R.id.tvDrive);
+        tvWH = findViewById(R.id.tvWH);
+
+        textViewWHCounterValue = findViewById(R.id.textViewWHCounterValue);
+        // SharedPreferences 초기화
+        sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+
+        // SharedPreferences 리스너 설정
+        preferenceChangeListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+            @Override
+            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                if ("whcountui".equals(key)) {
+                    int whcountui = sharedPreferences.getInt(key, 0);
+                    // WH 카운터 UI 업데이트
+                    updateUI(whcountui);
+                } else if ("GPIO_138_ACTIVE".equals(key) || "GPIO_139_ACTIVE".equals(key) || "GPIO_28_ACTIVE".equals(key)) {
+                    // GPIO 상태가 변경되었을 때의 UI 업데이트
+                    boolean is138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
+                    boolean is139Active = sharedPreferences.getBoolean("GPIO_139_ACTIVE", false);
+                    boolean is28Active = sharedPreferences.getBoolean("GPIO_28_ACTIVE", false);
+                    updateGPIOUI(is138Active, is139Active, is28Active);
+                }
+            }
+        };
+        sharedPreferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener);
+
+        // 앱 시작 시 초기 값으로 UI 업데이트
+        int whcountui = sharedPreferences.getInt("whcountui", 0);
+        updateUI(whcountui);
+
+        networkStateReceiver = new NetworkStateReceiver();
         buttonOption = findViewById(R.id.buttonOption);
         // BroadcastReceiver 등록
         IntentFilter filter = new IntentFilter();
         filter.addAction("com.example.uart_blue.ACTION_UPDATE_UI");
         registerReceiver(updateUIReceiver, filter);
-
         buttonOption.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Intent optionIntent = new Intent(MainActivity.this, OptionActivity.class);
                 optionIntent.putExtra("storageInfo", usbInfo.toString());
                 startActivity(optionIntent);
+                finish();
             }
         });
-        Intent getintent = getIntent();
-        SelectDevice = getintent.getStringExtra("selectedStorage");
-        //Log.d(TAG, "optionactivity에서 온 저장매체: "+ SelectDevice);
+        SelectDevice =sharedPreferences.getString("selectedStorage", "");
 
         textViewUSBStorageInfo = findViewById(R.id.textViewDatasizeValue); //저장소 용량tv
         handler.post(runnable); // 첫 실행 및 주기적 업데이트 시작
         updateUSBStorageInfo();
+
+        Button buttonResetWHCounter = findViewById(R.id.buttonResetWHCounter);
+        buttonResetWHCounter.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putInt("whcountui", 0);
+                editor.apply();
+                updateUI(0); // UI를 즉시 업데이트하여 0을 표시합니다.
+            }
+        });
     }
     // 데이터 업데이트 메소드
-
 
     private void updateUSBStorageInfo() {
         StorageManager storageManager = (StorageManager) getSystemService(Context.STORAGE_SERVICE);
@@ -174,12 +194,81 @@ public class MainActivity extends AppCompatActivity {
             textViewUSBStorageInfo.setText(displayInfo.toString());
         }
     }
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (networkStateReceiver == null) {
+            networkStateReceiver = new NetworkStateReceiver();
+        }
+        IntentFilter filter = new IntentFilter("com.example.uart_blue.UPDATE_NETWORK_STATE");
+        registerReceiver(networkStateReceiver, filter);
+        isReceiverRegistered = true; // 리시버가 등록되었음을 표시합니다.
+        // 저장된 GPIO 상태를 불러옵니다.
+        boolean is138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
+        boolean is139Active = sharedPreferences.getBoolean("GPIO_139_ACTIVE", false);
+        boolean is28Active = sharedPreferences.getBoolean("GPIO_28_ACTIVE", false);
 
+        // UI 업데이트 로직
+        updateGPIOUI(is138Active, is139Active, is28Active);
+    }
+    private void updateUI(int count) {
+        // UI 스레드에서 TextView 업데이트
+        runOnUiThread(() -> textViewWHCounterValue.setText(String.valueOf(count)));
+    }
+    private BroadcastReceiver uiUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String state = intent.getStringExtra("networkState");
+            updateNetworkStateUI(state);
+        }
+    };
+
+    private void updateNetworkStateUI(String state) {
+        TextView networkStateTextView = findViewById(R.id.textViewNetworkStateValue);
+        networkStateTextView.setText(state);
+        ImageView ic_notconnected = findViewById(R.id.ic_notconnected);
+        ImageView ic_connected = findViewById(R.id.ic_connected);
+        if ("연결됨".equals(state)) {
+            ic_connected.setVisibility(View.VISIBLE);
+            ic_notconnected.setVisibility(View.INVISIBLE);
+        } else {
+            ic_notconnected.setVisibility(View.VISIBLE);
+            ic_connected.setVisibility(View.INVISIBLE);
+        }
+    }
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // 리시버가 등록되어 있으면 해제합니다.
+        if (isReceiverRegistered && networkStateReceiver != null) {
+            unregisterReceiver(networkStateReceiver);
+            isReceiverRegistered = false; // 리시버 등록 해제를 표시합니다.
+        }
+    }
     @Override
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(runnable); // 활동이 파괴될 때 업데이트 중지
         // BroadcastReceiver 해제
         unregisterReceiver(updateUIReceiver);
+        // 액티비티가 파괴될 때 리스너 등록 해제
+        sharedPreferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(uiUpdateReceiver);
+    }
+
+    private void updateGPIOUI(boolean is138Active, boolean is139Active, boolean is28Active) {
+        runOnUiThread(() -> {
+            // null 체크 추가
+            if(tvStop != null && tvDrive != null && tvWH != null) {
+                if (is138Active) {
+                    tvDrive.setVisibility(View.VISIBLE);
+                    tvStop.setVisibility(View.INVISIBLE);
+                } else if (is139Active) {
+                    tvDrive.setVisibility(View.INVISIBLE);
+                    tvStop.setVisibility(View.VISIBLE);
+                }
+                tvWH.setVisibility(is28Active ? View.VISIBLE : View.INVISIBLE);
+            }
+        });
     }
 }

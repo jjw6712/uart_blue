@@ -2,29 +2,46 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.BLUETOOTH"
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
-
-    <!-- Needed only if your app looks for Bluetooth devices.
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!--
+ Needed only if your app looks for Bluetooth devices.
          You must add an attribute to this permission, or declare the
          ACCESS_FINE_LOCATION permission, depending on the results when you
-         check location usage in your app. -->
+         check location usage in your app.
+    -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/main_icon"
         android:label="@string/app_name"
+        android:largeHeap="true"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Base.Theme.Uart_blue"
         tools:targetApi="31">
-        <activity android:name=".GPIOActivity"/>
-        <activity android:name=".OptionActivity"/>
+        <service
+            android:name=".SerialService"
+            android:enabled="true"
+            android:exported="true" />
+
+        <activity android:name=".GPIOActivity" />
+        <activity android:name=".OptionActivity" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -34,6 +51,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver android:name=".Network.NetworkStateReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.uart_blue.UPDATE_NETWORK_STATE" />
+            </intent-filter>
+        </receiver>
+        <receiver android:name=".Reboot.BootCompletedReceiver"
+            android:exported="true"
+            android:enabled="true"
+            android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

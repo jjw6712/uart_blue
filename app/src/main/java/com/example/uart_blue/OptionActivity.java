@@ -17,6 +17,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -35,8 +36,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.documentfile.provider.DocumentFile;
+import androidx.work.PeriodicWorkRequest;
+import androidx.work.WorkManager;
 
 import com.example.uart_blue.FileManager.FileManager;
+import com.example.uart_blue.FileManager.FileProcessingTask;
+import com.example.uart_blue.FileManager.OldFilesDeletionWorker;
+import com.example.uart_blue.FileManager.ZipFilesDeletionWorker;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -48,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -64,19 +71,22 @@ public class OptionActivity extends AppCompatActivity {
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
     // 멤버 변수로 GPIOActivity 참조를 유지합니다.
     private GPIOActivity gpioActivity;
-    private final Handler handler = new Handler();
-    private Runnable fileDeletionRunnable;
 
-    private EditText pressEditText;
+    private EditText pressEditText, SIPEditText, TPortEditText, ZPortEditText;
     private double maxPressure;
+    int days;
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
-    @SuppressLint("RestrictedApi")
+    @SuppressLint({"RestrictedApi", "MissingInflatedId"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
         checkStoragePermission();
+
+        SIPEditText = findViewById(R.id.SIPEditText);
+        TPortEditText = findViewById(R.id.TPortEditText);
+        ZPortEditText = findViewById(R.id.ZPortEditText);
 
         // Initialize the spinner
         Spinner sensorTypeSpinner = findViewById(R.id.SensorTypeSpinner);
@@ -98,6 +108,8 @@ public class OptionActivity extends AppCompatActivity {
                 // An item was selected. You can retrieve the selected item using
                 String selectedItem = parent.getItemAtPosition(position).toString();
                 updatePressureLimits(selectedItem);
+                // Update the global data manager
+                SensorDataManager.getInstance().setMaxPressure(maxPressure);
             }
 
             @Override
@@ -123,8 +135,9 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 // An item was selected. You can retrieve the selected item using
-                String selectedItem = parent.getItemAtPosition(position).toString();
-                Toast.makeText(OptionActivity.this, "Selected: " + selectedItem, Toast.LENGTH_SHORT).show();
+                String selectedTime = parent.getItemAtPosition(position).toString();
+                // Update the global data manager
+                SensorDataManager.getInstance().setSelectedTime(Integer.parseInt(selectedTime));
             }
 
             @Override
@@ -157,7 +170,7 @@ public class OptionActivity extends AppCompatActivity {
 
         // 시간 입력받기 위한 EditText 추가
         EditText secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
-
+        EditText WHHoldingEditText = findViewById(R.id.whHoldingEditText);
         setupButtons(); //터치로 동작을 제어하는 버튼 함수
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
@@ -182,12 +195,26 @@ public class OptionActivity extends AppCompatActivity {
         int beforeSeconds = sharedPreferences.getInt("beforeSeconds", 0);
         int afterMinutes = sharedPreferences.getInt("afterMinutes", 0);
         int intervalHours = sharedPreferences.getInt("intervalHours", 0);
+        int intervalDays = sharedPreferences.getInt("intervalDays", 0);
+        String selectedSensorType = sharedPreferences.getString("SelectedSensorType", "");
+        String selectedTime = sharedPreferences.getString("SelectedTime", "");
+        String pressureValue = sharedPreferences.getString("PressureValue", "");
+        String serverIP = sharedPreferences.getString("ServerIP", "");
+        String TPort = sharedPreferences.getString("TPort", "");
+        String ZPort = sharedPreferences.getString("ZPort", "");
+
+        SIPEditText.setText(serverIP);
+        TPortEditText.setText(TPort);
+        ZPortEditText.setText(ZPort);
 
         beforeTimesEditText.setText(String.valueOf(beforeSeconds));
         afterTimesEditText.setText(String.valueOf(afterMinutes));
         secondHoldingEditText.setText(String.valueOf(intervalHours));
+        WHHoldingEditText.setText(String.valueOf(intervalDays));
 
-
+        sensorTypeSpinner.setSelection(sensoradapter.getPosition(selectedSensorType));
+        timeSpinner.setSelection(timeadapter.getPosition(selectedTime));
+        pressEditText.setText(pressureValue);
         // 패스워드 버튼 클릭 리스너 설정
         findViewById(R.id.passwordButton).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -233,18 +260,23 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 try {
-                    // SecondHoldingEditText에서 시간을 입력받아 저장
-                    int intervalHours = Integer.parseInt(secondHoldingEditText.getText().toString());
-                    // 시간이 유효한 범위 내에 있는지 확인
-                    if (intervalHours < 1 || intervalHours > 12) {
-                        Toast.makeText(OptionActivity.this, "시간은 1시간부터 12시간 사이로 설정해야 합니다.", Toast.LENGTH_SHORT).show();
+                    String serverIP = String.valueOf(SIPEditText.getText());
+                    String TPort = String.valueOf(TPortEditText.getText());
+                    String ZPort = String.valueOf(ZPortEditText.getText());
+
+                    // 1초 파일 홀딩 시간을 무조건 1시간을 의미하는 1로 설정
+                    int intervalHours = 1;
+
+                    days = Integer.parseInt(WHHoldingEditText.getText().toString());
+
+                    // 일수가 유효한 범위 내에 있는지 확인
+                    if (days < 1 || days > 21) {
+                        Toast.makeText(OptionActivity.this, "일수는 1일부터 21일 사이로 설정해야 합니다.", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    long intervalMillis = intervalHours  * 60 * 60 * 1000; //1초파일 삭제 인터벌 시간을 밀리초로 변환
 
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("selectedStorage", selectedStorage);
-                    editor.putLong("fileDeletionIntervalMillis", intervalMillis); // 파일 삭제 간격을 밀리초 단위로 저장
                     editor.putBoolean(SWITCH_TEST_KEY, checkboxSwitchTest.isChecked()); // 체크박스의 현재 상태를 저장
 
                     int beforeSeconds = Integer.parseInt(beforeTimesEditText.getText().toString()); // 초 단위
@@ -253,22 +285,29 @@ public class OptionActivity extends AppCompatActivity {
                     long beforeMillis = beforeSeconds * 1000;
                     long afterMillis = afterMinutes * 60 * 1000;
                     editor.putInt("intervalHours", intervalHours);
+                    editor.putInt("intervalDays", days);
                     editor.putInt("beforeSeconds", beforeSeconds);
                     editor.putInt("afterMinutes", afterMinutes);
                     editor.putLong("beforeMillis", beforeMillis);
                     editor.putLong("afterMillis", afterMillis);
+                    editor.putString("SelectedSensorType", sensorTypeSpinner.getSelectedItem().toString());
+                    editor.putString("SelectedTime", timeSpinner.getSelectedItem().toString());
+                    editor.putString("PressureValue", pressEditText.getText().toString());
+                    editor.putString("ServerIP", serverIP);
+                    editor.putString("TPort", TPort);
+                    editor.putString("ZPort", ZPort);
                     editor.apply();
-                    // 파일 삭제 작업 스케줄링
-                    scheduleFileDeletionWithHandler(intervalMillis);
 
                     // MainActivity로 이동
                     Intent intent = new Intent(OptionActivity.this, MainActivity.class);
                     intent.putExtra("selectedStorage", extractStorageName(selectedStorage));
                     startActivity(intent);
+                    finish();
 
                 } catch (NumberFormatException e) {
                     Toast.makeText(OptionActivity.this, "잘못된 시간 형식입니다.", Toast.LENGTH_SHORT).show();
                 }
+
             }
 
             private String extractStorageName(String storageInfo) {
@@ -285,6 +324,9 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 // 취소 로직, 입력 필드 초기화 등
+                // MainActivity로 이동
+                Intent intent = new Intent(OptionActivity.this, MainActivity.class);
+                startActivity(intent);
                 finish();
             }
         });
@@ -310,10 +352,14 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void afterTextChanged(Editable s) {
                 if (!s.toString().isEmpty()) {
-                    double value = Double.parseDouble(s.toString());
-                    if (value < 0.1 || value > maxPressure) {
+                    double inputValue = Double.parseDouble(s.toString());
+                    double maxPressure = SensorDataManager.getInstance().getMaxPressure();
+                    if (inputValue < 0.1 || inputValue > maxPressure) {
                         pressEditText.setError("값은 0.1kg과 " + maxPressure + "kg 사이여야 합니다.");
                     } else {
+                        // Update the global data manager
+                        double percentage = (inputValue / maxPressure) * 80;
+                        SensorDataManager.getInstance().setExpectedPressurePercentage(percentage);
                         pressEditText.setError(null);
                     }
                 }
@@ -326,66 +372,20 @@ public class OptionActivity extends AppCompatActivity {
         maxPressure = sensorMaxKg * 0.8; // Set to 80% of the sensor's maximum capacity
         // Optionally, update EditText hint or other UI elements to show the limit
         pressEditText.setHint("Enter value (0.1 - " + maxPressure + " kg)");
+        pressEditText.setTextSize(10);
     }
 
-
-
-    /*private void setupButtons() {
-        Button sendButton1 = findViewById(R.id.buttonSend1);
-        sendButton1.setOnClickListener(view -> {
-            // ReadThread와 FileSaveThread를 다시 시작합니다.
-            startReadingData();
-            // 데이터를 송신합니다.
-            if (readThread != null) {
-                readThread.sendDataToSerialPort(new byte[] { '1' });
-            }
-        });
-
-        Button sendButton0 = findViewById(R.id.buttonSend0);
-        sendButton0.setOnClickListener(v -> {
-            if (readThread != null) {
-                readThread.sendDataToSerialPort(new byte[] { '0' });
-                // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
-                readThread.stopThreads();
-            }
-        });
-    }*/
     private void setupButtons() {
         Button sendButton1 = findViewById(R.id.btstart);
         sendButton1.setOnClickListener(view -> {
-            // ReadThread와 FileSaveThread를 다시 시작합니다.
-            startReadingData();
-            // 데이터를 송신합니다.
-            if (readThread != null) {
-                // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
-                byte[] startSignal = {0x02, 0x10, 0x03};
-                // 체크섬 계산
-                byte checksum = calculateChecksum(startSignal);
-                // 체크섬을 포함하여 전송할 데이터 생성
-                byte[] dataToSend = new byte[startSignal.length + 1];
-                System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
-                dataToSend[dataToSend.length - 1] = checksum;
-                // 데이터 전송
-                readThread.sendDataToSerialPort(dataToSend);
-            }
+            Intent serviceIntent = new Intent(this, SerialService.class);
+            startService(serviceIntent); // 서비스 시작
         });
 
         Button sendButton0 = findViewById(R.id.btstop);
         sendButton0.setOnClickListener(v -> {
-            if (readThread != null) {
-                // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
-                byte[] startSignal = {0x02, 0x20, 0x03};
-                // 체크섬 계산
-                byte checksum = calculateChecksum(startSignal);
-                // 체크섬을 포함하여 전송할 데이터 생성
-                byte[] dataToSend = new byte[startSignal.length + 1];
-                System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
-                dataToSend[dataToSend.length - 1] = checksum;
-                // 데이터 전송
-                readThread.sendDataToSerialPort(dataToSend);
-                // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
-                readThread.stopThreads();
-            }
+            Intent serviceIntent = new Intent(this, SerialService.class);
+            stopService(serviceIntent); // 서비스 종료
         });
 
         Button sendButton2 = findViewById(R.id.btwh);
@@ -410,14 +410,13 @@ public class OptionActivity extends AppCompatActivity {
                     // eventTime을 기반으로 파일 이름 생성
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
                     String eventDateTime = sdf.format(eventTime);
-                    String combinedFileName = eventDateTime + ".txt";
+                    String combinedFileName = deviceNumber+"-"+eventDateTime + ".txt";
                     Uri combinedFileUri = FileManager.combineTextFilesInRange(this, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
 
                     if (combinedFileUri != null) {
-                        String zipFileName = eventDateTime + ".zip";
-                        Uri outputZipUri = FileManager.createOutputZipUri(this, directoryUri, zipFileName);
-                        FileManager.compressFile(this, combinedFileUri, outputZipUri);
-                        Log.d(TAG, "파일이 성공적으로 압축되었습니다.");
+                        List<Uri> fileUris = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
+                        new FileProcessingTask(this, fileUris, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+
                     }
                 } else {
                     Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
@@ -427,67 +426,6 @@ public class OptionActivity extends AppCompatActivity {
         });
     }
 
-    // 체크섬을 계산하는 메소드
-    public byte calculateChecksum(byte[] data) {
-        byte checksum = 0;
-        for (byte b : data) {
-            checksum ^= b; // XOR 연산
-        }
-        return checksum;
-    }
-    public void startReadingData() {
-        String portPath = "/dev/ttyS0"; // 예시 경로
-        int baudRate = 115200;
-        readThread = new ReadThread(portPath, baudRate, new ReadThread.IDataReceiver() {
-            @Override
-            public void onReceiveData(String data) {
-            }
-
-            @Override
-            public void onError(Exception e) {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        // 에러 처리 로직
-                        Log.e(TAG, "Error: ", e);
-                    }
-                });
-            }
-        }, this);
-        readThread.start();
-    }
-    // 이 메서드는 GPIOActivity에서 호출됩니다.
-    public void startReadingDataFromGPIO() {
-        if (readThread == null || !readThread.isAlive()) {
-            SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-            boolean isSwitchChecked = sharedPreferences.getBoolean(SWITCH_TEST_KEY, false);
-
-            // 체크박스의 현재 상태를 설정합니다.
-            CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
-            checkboxSwitchTest.setChecked(isSwitchChecked);
-
-            // 체크박스의 상태에 따라 GPIO 입력을 활성화하거나 비활성화합니다.
-            if (isSwitchChecked) {
-                startReadingData();
-            } else {
-               return;
-            }
-        }
-    }
-
-    public void sendDataToSerialPort(byte[] data) {
-        if (readThread != null) {
-            readThread.sendDataToSerialPort(data);
-        }
-    }
-
-    public void stopReadThread() {
-        if (readThread != null) {
-            readThread.stopThreads();
-            readThread = null; // 스레드 참조 해제
-        }
-    }
-    // ... TCP/IP 설정 저장 및 테스트를 위한 추가적인 메소드
     private List<String> parseStorageInfo(String storageInfo) {
         List<String> storageDetails = new ArrayList<>();
         if (storageInfo != null && !storageInfo.isEmpty()) {
@@ -541,47 +479,15 @@ public class OptionActivity extends AppCompatActivity {
         }
     }
 
-    private void scheduleFileDeletionWithHandler(long intervalMillis) {
-        // 기존 작업이 있다면 취소
-        cancelScheduledDeletion();
 
-        fileDeletionRunnable = new Runnable() {
-            @Override
-            public void run() {
-                // SharedPreferences에서 디렉토리 URI 가져오기
-                SharedPreferences prefs = getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
-                String directoryUriStr = prefs.getString("directoryUri", "");
-                if (!directoryUriStr.isEmpty()) {
-                    Uri directoryUri = Uri.parse(directoryUriStr);
-                    deleteWHDataDirectory(directoryUri); // 파일 삭제 로직 실행
-                }
-
-                // 다음 실행을 위해 자기 자신을 다시 스케줄
-                handler.postDelayed(this, intervalMillis);
-            }
-        };
-
-        // 최초 실행 스케줄
-        handler.postDelayed(fileDeletionRunnable, intervalMillis);
-    }
-
-    private void deleteWHDataDirectory(Uri directoryUri) {
-        DocumentFile directory = DocumentFile.fromTreeUri(this, directoryUri);
-        if (directory != null && directory.isDirectory()) {
-            DocumentFile whDataDirectory = directory.findFile("W.H.Data");
-            if (whDataDirectory != null && whDataDirectory.isDirectory()) {
-                whDataDirectory.delete(); // "W.H.Data" 폴더 삭제
+    public void requestWriteSettingsPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.System.canWrite(getApplicationContext())) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + getPackageName()));
+                startActivityForResult(intent, 200);
             }
         }
     }
-
-    private void cancelScheduledDeletion() {
-        if (fileDeletionRunnable != null) {
-            handler.removeCallbacks(fileDeletionRunnable);
-        }
-    }
-
-
     protected void onResume() {
         super.onResume();
 

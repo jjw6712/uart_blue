@@ -83,33 +83,51 @@
             android:padding="16dp">
 
             <TextView
-                android:id="@+id/textViewBoxcase"
+                android:id="@+id/textViewNetwork"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Boxcase"
+                android:text="Network"
                 android:textSize="30dp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/textViewHuminity"
+                android:id="@+id/textViewNetworkState"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_below="@id/textViewBoxcase"
+                android:layout_below="@id/textViewNetwork"
                 android:layout_marginTop="8dp"
                 android:textStyle="bold"
                 android:textSize="20dp"
-                android:text="Huminity: "
+                android:text="State: "
                 android:layout_marginStart="20dp"/>
 
+            <ImageView
+                android:id="@+id/ic_notconnected"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_alignBaseline="@id/textViewNetwork"
+                android:layout_marginStart="800dp"
+                android:background="@drawable/ic_notconnect">
+            </ImageView>
+            <ImageView
+                android:id="@+id/ic_connected"
+                android:layout_width="50dp"
+                android:layout_height="50dp"
+                android:layout_alignBaseline="@id/textViewNetwork"
+                android:layout_marginStart="800dp"
+                android:background="@drawable/ic_connect"
+                android:visibility="invisible">
+            </ImageView>
+
             <TextView
-                android:id="@+id/textViewHuminityValue"
+                android:id="@+id/textViewNetworkStateValue"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_alignBaseline="@id/textViewHuminity"
+                android:layout_alignBaseline="@id/textViewNetworkState"
                 android:layout_marginLeft="8dp"
                 android:textSize="20dp"
-                android:layout_toRightOf="@id/textViewHuminity"
-                android:text="습도%" />
+                android:layout_toRightOf="@id/textViewNetworkState"
+                android:text="네트워크 연결없음" />
 
 
         </RelativeLayout>
@@ -261,6 +279,7 @@
 </androidx.cardview.widget.CardView>
 
     <androidx.cardview.widget.CardView
+        android:id="@+id/lastcardview"
         android:layout_marginTop="345dp"
         android:layout_width="300dp"
         android:layout_height="245dp"
@@ -319,4 +338,13 @@
 
         </RelativeLayout>
     </androidx.cardview.widget.CardView>
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/lastcardview"
+        android:text="Ver 1.0"
+        android:textStyle="bold"
+        android:textSize="50dp"
+        android:layout_marginStart="1100dp">
+    </TextView>
 </RelativeLayout>

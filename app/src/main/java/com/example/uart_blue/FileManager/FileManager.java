@@ -2,6 +2,7 @@ package com.example.uart_blue.FileManager;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -19,6 +20,8 @@ import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -92,31 +95,32 @@ public class FileManager {
                 zos.write(buffer, 0, count);
             }
             zos.closeEntry();
+            Log.e("FileManager", "파일 압축 완료11");
+            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+            intent.putExtra("GPIO_28_ACTIVE", false);
+            context.sendBroadcast(intent);
         } catch (IOException e) {
             Log.e("FileManager", "Error compressing file", e);
         }
     }
 
     public static Uri combineTextFilesInRange(Context context, List<Uri> fileUris, String combinedFileName, Date eventTime, long beforeMillis, long afterMillis) {
-        StringBuilder combinedContent = new StringBuilder();
-        // 날짜 형식을 변경하여 각 행의 정확한 날짜와 시간을 파싱할 수 있도록 함
-        SimpleDateFormat format = new SimpleDateFormat("yyyy, MM, dd, HH, mm, ss, SSS", Locale.getDefault());
-
-        // eventTime 기준으로 실제 시간 범위 계산
+        File combinedFile = new File(context.getCacheDir(), combinedFileName);
+        SimpleDateFormat format = new SimpleDateFormat("yyyy, MM, dd, HH, mm, ss", Locale.getDefault());
         long startTime = eventTime.getTime() - beforeMillis;
         long endTime = eventTime.getTime() + afterMillis;
+        List<LineEntry> entries = new ArrayList<>();
 
+        // 파일 읽기 및 파싱
         for (Uri fileUri : fileUris) {
             try (InputStream inputStream = context.getContentResolver().openInputStream(fileUri);
                  BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     try {
-                        // 각 행의 날짜와 시간 정보 파싱
                         Date lineDate = format.parse(line.substring(0, line.lastIndexOf(',')));
                         if (lineDate != null && lineDate.getTime() >= startTime && lineDate.getTime() <= endTime) {
-                            // 해당 범위 내 데이터만 combinedContent에 추가
-                            combinedContent.append(line).append(System.lineSeparator());
+                            entries.add(new LineEntry(lineDate, line));
                         }
                     } catch (ParseException e) {
                         Log.e("FileManager", "Error parsing date in file: " + fileUri, e);
@@ -127,21 +131,21 @@ public class FileManager {
             }
         }
 
-        // combinedContent에 저장된 내용을 실제 파일로 쓰기
-        if (combinedContent.length() > 0) {
-            File combinedFile = new File(context.getCacheDir(), combinedFileName);
-            try (FileWriter writer = new FileWriter(combinedFile)) {
-                writer.write(combinedContent.toString());
-                return Uri.fromFile(combinedFile);
-            } catch (IOException e) {
-                Log.e("FileManager", "Error writing combined file", e);
-                return null;
+        // 시간 순으로 정렬
+        Collections.sort(entries, Comparator.comparing(LineEntry::getDate));
+
+        // 정렬된 데이터 저장
+        try (FileWriter writer = new FileWriter(combinedFile)) {
+            for (LineEntry entry : entries) {
+                writer.append(entry.getText()).append(System.lineSeparator());
             }
+        } catch (IOException e) {
+            Log.e("FileManager", "Error writing combined file", e);
+            return null;
         }
 
-        return null;
+        return Uri.fromFile(combinedFile);
     }
-
 
 
 }

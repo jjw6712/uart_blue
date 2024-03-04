@@ -1,15 +1,27 @@
 package com.example.uart_blue;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.Settings;
 import android.util.Log;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 import java.io.InputStream;
 import java.io.IOException;
@@ -30,6 +42,10 @@ import java.util.concurrent.TimeUnit;
 import android.content.Context;
 import android.util.Log;
 
+import com.example.uart_blue.FileManager.FileManager;
+import com.example.uart_blue.FileManager.FileProcessingTask;
+import com.example.uart_blue.Network.TcpClient;
+
 import android_serialport_api.SerialPort;
 
 public class ReadThread extends Thread {
@@ -40,7 +56,7 @@ public class ReadThread extends Thread {
     private static final byte ETX = 0x03;  // 종료 바이트
 
     private FileSaveThread fileSaveThread;
-    private int localCounter = 0;
+    private int localCounter = -1;
     private StringBuilder logEntries = new StringBuilder();
     private SimpleDateFormat dateFormat;
     private InputStream mInputStream;
@@ -49,9 +65,13 @@ public class ReadThread extends Thread {
     protected OutputStream mOutputStream;
 
     private long lastSaveTime = System.currentTimeMillis(); // 마지막 저장 시간 초기화
-    private final long SAVE_INTERVAL = 1000; // 데이터 저장 간격 (1초)
+    private int whcount = 0;
     private ConcurrentLinkedQueue<byte[]> packetQueue = new ConcurrentLinkedQueue<>();
     private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+    OptionActivity optionActivity;
+    private boolean isWhConditionProcessing = false; // wh 판단 로직 실행 중 플래그
+    boolean isSleep = false;
+    SharedPreferences sharedPreferences;
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -60,7 +80,7 @@ public class ReadThread extends Thread {
     }
 
     public ReadThread(String portPath, int baudRate, IDataReceiver receiver, Context context) {
-        this.context = context; // Context 초기화
+        this.context = context.getApplicationContext(); // 애플리케이션 컨텍스트 사용
         this.dataReceiver = receiver;
         this.fileSaveThread = new FileSaveThread(context);
         this.fileSaveThread.start(); // FileSaveThread 시작
@@ -157,21 +177,55 @@ public class ReadThread extends Thread {
             // battery 값을 추출합니다. (하위 7비트 사용)
             int battery = statusByte & 0x7F; // 0x7F = 0111 1111
             // battery 백분율 계산
-            int batteryPercentage = (battery * 123) / 0x7F;
+            int batteryPercentage = (battery * 106) / 0x7F;
 
             // drive 상태를 추출합니다. (3번째 비트)
             int drive = (statusByte & 0x08) >> 3; // 0x08 = 0000 1000
 
             // stop 상태를 추출합니다. (2번째 비트)
             int stop = (statusByte & 0x04) >> 2; // 0x04 = 0000 0100
-
+            int wh = 0;
             // blackout 상태를 추출합니다. (1번째 비트)
             int blackout = (statusByte & 0x01); // 0x01 = 0000 0001
             byte etx = packet[6];
 
+            double currentPressurePercentage = calculatePercentageFromADC(pressure);
+            // SensorDataManager에서 마지막 압력 백분율과 시간을 가져옵니다.
+            SensorDataManager dataManager = SensorDataManager.getInstance();
+            double lastPressurePercentage = dataManager.getLastPressurePercentage();
+            long lastPressureTime = dataManager.getLastPressureTime();
+            // 현재 시간을 기준으로 지난 시간을 계산합니다.
+            long currentTime = System.currentTimeMillis();
+            long timeDifference = currentTime - lastPressureTime;
+            double presspur = dataManager.getExpectedPressurePercentage();
+           //Log.d(TAG, "수압"+currentPressurePercentage+"이전 수압%"+lastPressurePercentage+"현재 시간"+timeDifference+"설정 시간"+presspur);
+            // 만약 설정된 시간이 지났다면 현재 압력 백분율을 비교하여 wh 변수를 업데이트합니다.
+            // 현재 압력 백분율과 시간을 업데이트하는 메서드 내부에서
+            if (!isWhConditionProcessing && timeDifference >= dataManager.getSelectedTime() * 1000) {
+                // 첫 번째 데이터 수신 시 -1에서 업데이트되어 있는 경우를 고려하여 조건 수정
+                if (lastPressurePercentage == -1) {
+                    // 첫 번째 데이터 수신 시에는 조건 판단을 건너뛰고 lastPressurePercentage만 업데이트
+                    dataManager.updatePressureData(currentPressurePercentage);
+                } else if (currentPressurePercentage > lastPressurePercentage && Math.abs(currentPressurePercentage - lastPressurePercentage) >= dataManager.getExpectedPressurePercentage()) {
+                    isWhConditionProcessing = true; // wh 판단 로직 실행 중임을 나타냄
+                    wh = 1; // wh 상태로 판단
+                    SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+                    int whcount = sharedPreferences.getInt("whcountui", 0);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putInt("whcountui", whcount + 1);
+                    editor.apply();
+                    ZipFIleSaved(); // 조건 충족 시 수행할 작업
+                    Log.d(TAG, "현재수압" + currentPressurePercentage + "이전수압" + lastPressurePercentage);
+                }
+                // 여기서 현재 압력 백분율과 시간을 항상 업데이트합니다.
+                dataManager.updatePressureData(currentPressurePercentage);
+            }
+            //if(currentPressurePercentage == 99 || currentPressurePercentage == 0){
+                //Log.d(TAG, "압력: "+currentPressurePercentage);
+            //}
             // 현재 시간과 함께 로그 기록 생성
             String timestamp = dateFormat.format(new Date());
-            int wh = 0;
+
             String logEntry = String.format(
                     "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d",
                     timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
@@ -185,24 +239,38 @@ public class ReadThread extends Thread {
                     blackout // 블랙아웃 상태
 
             );
-
+            if (batteryPercentage <= 16 && blackout == 1) {
+                 //사용자에게 슬립 모드 전환을 권장하는 알림 표시
+                recommendSleepMode();
+                isSleep = true;
+            }
+            if (isSleep == true && blackout == 0) {
+                // 웨이크업 모드 로직
+                wakeUpFromSleepMode();
+                isSleep = false;
+            }
             logEntries.append(logEntry + "\n");
-            long currentTime = System.currentTimeMillis();
-            if (localCounter >= 1000) { // 지정된 시간 간격(1초)이 경과했는지 확인
+            //long currentTime = System.currentTimeMillis();
+            if (localCounter >= 999) { // 지정된 시간 간격(1초)이 경과했는지 확인
                 if (logEntries.length() > 0) { // 로그 데이터가 있을 경우에만 저장
                     fileSaveThread.addData(logEntries.toString());
                     logEntries.setLength(0); // 로그 기록 초기화
+                    byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout);
+                    // Context와 바이너리 데이터를 사용하여 TcpClient 인스턴스 생성
+                    TcpClient tcpClient = new TcpClient(context, decimalData );
+                    tcpClient.execute(); // AsyncTask 실행하여 서버로 데이터 전송
+                    // 패킷 처리가 성공했을 때 Broadcast Intent 생성 및 전송
+                    Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+                    intent.putExtra("wh", whcount);
+                    intent.putExtra("battery", batteryPercentage);
+                    intent.putExtra("blackout", blackout);
+                    context.sendBroadcast(intent);
                 }
                 lastSaveTime = currentTime; // 마지막 저장 시간 업데이트
-                localCounter = 0;
+                localCounter = -1;
+                whcount = 0;
             }
-            // 패킷 처리가 성공했을 때 Broadcast Intent 생성 및 전송
-            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-            intent.putExtra("wh", wh);
-            //intent.putExtra("humidity", 0);
-            intent.putExtra("battery", battery);
-            intent.putExtra("blackout", blackout);
-            context.sendBroadcast(intent);
+
         } else {
             Log.e(TAG, "체크섬 오류!!!");
         }
@@ -234,13 +302,21 @@ public class ReadThread extends Thread {
             dataReceiver.onError(e);
         }
     }
-
     private String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
             sb.append(String.format("0x%02X ", b));
         }
         return sb.toString().trim();
+    }
+    public byte[] createDecimalData(String timestamp, double pressurePercentage, double waterLevelPercentage, int batteryPercentage, int drive, int stop, int wh, int blackout) {
+        // 데이터를 문자열 형태로 결합
+        String data = String.format("%s, %.2f, %.2f, %d, %d, %d, %d, %d",
+                timestamp, pressurePercentage, waterLevelPercentage,
+                batteryPercentage, drive, stop, wh, blackout);
+
+        // 문자열 데이터를 바이트 배열로 변환 (UTF-8 인코딩 사용)
+        return data.getBytes(StandardCharsets.UTF_8);
     }
     private double calculatePercentageFromADC(int adcValue) {
         // ADC 값의 최소 및 최대 범위 설정
@@ -259,12 +335,91 @@ public class ReadThread extends Thread {
 
         return percentage;
     }
+
+    public void ZipFIleSaved(){
+        Log.d(TAG, "GPIO 수격신호 수신");
+        saveWHState(true);
+        Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        String directoryUriString = sharedPreferences.getString("directoryUri", "");
+        String deviceNumber = sharedPreferences.getString("deviceNumber", "");
+        long beforeMillis = sharedPreferences.getLong("beforeMillis", 0);
+        long afterMillis = sharedPreferences.getLong("afterMillis", 0);
+
+        // 이벤트 발생 후 대기할 시간 계산
+        long delay = afterMillis;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Uri directoryUri = Uri.parse(directoryUriString);
+            List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
+
+            if (!filesInRange.isEmpty()) {
+                // eventTime을 기반으로 파일 이름 생성
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
+                String eventDateTime = sdf.format(eventTime);
+
+                String combinedFileName = deviceNumber+"-"+eventDateTime + ".txt";
+
+                if (!filesInRange.isEmpty()) {
+                    new FileProcessingTask(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+                }
+            } else {
+                Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
+            }
+            isWhConditionProcessing = false;
+            saveWHState(false);
+        }, delay);
+    }
+
+    private void recommendSleepMode() { //슬립모드
+        //stopThreads(); // 모든 스레드와 리소스 해제
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Settings.System.canWrite(context)) {
+                try {
+                    // 화면 밝기를 가장 낮은 값으로 설정
+                    Settings.System.putInt(context.getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, 1);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else {
+                if (context instanceof Activity) {
+                    ((Activity) context).runOnUiThread(() -> optionActivity.requestWriteSettingsPermission());
+                }
+            }
+        }
+    }
+    private void wakeUpFromSleepMode() { //웨이크업 모드
+        // 화면 밝기를 사용자 설정 또는 기본값으로 복원
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (Settings.System.canWrite(context)) {
+                try {
+                    int brightness = 255; // 화면 밝기를 최대로 설정하거나, 사용자 설정에 맞게 조정
+                    Settings.System.putInt(context.getContentResolver(), Settings.System.SCREEN_BRIGHTNESS, brightness);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        Intent serviceIntent = new Intent(context, SerialService.class);
+        context.startService(serviceIntent); // 서비스 시작
+    }
     // ReadThread와 FileSaveThread를 정지하는 메소드
     public void stopThreads() {
         // ReadThread 중단
         interrupt();
         clearBuffer(); // 버퍼 초기화
-
+        try {
+            if (mInputStream != null) {
+                mInputStream.close();
+            }
+            if (mOutputStream != null) {
+                mOutputStream.close();
+            }
+            if (mSerialPort != null) {
+                mSerialPort.close();
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Error closing resources: " + e.getMessage());
+        }
         // FileSaveThread 중단
         if (fileSaveThread != null) {
             fileSaveThread.stopSaving();  // FileSaveThread에 중단 신호 보내기
@@ -283,8 +438,23 @@ public class ReadThread extends Thread {
             scheduler.shutdownNow(); // 진행 중인 모든 작업을 중단하고 스레드 풀을 종료
             scheduler = null;        // 참조 해제
         }
-
+        saveGPIOState(false, true);
         Log.d(TAG, "ReadThread, FileSaveThread, and scheduler stopped");
     }
+    // GPIO 상태 저장
+    private void saveGPIOState(boolean is138Active, boolean is139Active) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean("GPIO_138_ACTIVE", is138Active);
+        editor.putBoolean("GPIO_139_ACTIVE", is139Active);
+        editor.apply();
+    }
+    private void saveWHState(boolean is28Active) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean("GPIO_28_ACTIVE", is28Active);
+        editor.apply();
+    }
+
 }
 

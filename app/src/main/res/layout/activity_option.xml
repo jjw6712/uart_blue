@@ -172,7 +172,7 @@
                         android:layout_height="55dp"
                         android:layout_below="@+id/PressTitle"
                         android:layout_marginStart="300dp"
-                        android:hint="압력(단위: kg/s)">
+                        >
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/PressEditText"
@@ -180,31 +180,34 @@
                             android:layout_height="match_parent"
                             android:textSize="14dp"
                             android:textStyle="bold"
-                            android:inputType="text" />
+                            android:inputType="numberDecimal" />
                     </com.google.android.material.textfield.TextInputLayout>
                     <Button
                         android:id="@+id/btstart"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="45dp"
                         android:text="운전"
                         android:layout_below="@+id/PressTitle"
                         android:layout_marginStart="500dp"
+                        android:backgroundTint="@color/cardview_dark_background"
                         />
                     <Button
                         android:id="@+id/btstop"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
+                        android:layout_height="45dp"
                         android:text="정지"
                         android:layout_below="@+id/btstart"
                         android:layout_marginStart="500dp"
+                        android:backgroundTint="@color/cardview_dark_background"
                         />
                     <Button
                         android:id="@+id/btwh"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="정지"
+                        android:layout_height="45dp"
+                        android:text="수격"
                         android:layout_below="@+id/btstop"
                         android:layout_marginStart="500dp"
+                        android:backgroundTint="@color/cardview_dark_background"
                         />
                     <CheckBox
                         android:id="@+id/checkboxSwitchTest"
@@ -257,7 +260,8 @@
                         android:layout_height="wrap_content"
                         android:layout_below="@+id/tvselectDevice"
                         android:layout_marginStart="250dp"
-                        android:text="저장매체 선택"/>
+                        android:text="저장매체 선택"
+                        android:backgroundTint="@color/cardview_dark_background"/>
                 </RelativeLayout>
             </androidx.cardview.widget.CardView>
             <!-- Additional TCP/IP settings like subnet mask, gateway, etc. -->
@@ -308,7 +312,7 @@
                             android:layout_height="match_parent"
                             android:textSize="14dp"
                             android:textStyle="bold"
-                            android:inputType="text" />
+                            android:inputType="numberDecimal" />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <TextView
@@ -360,7 +364,7 @@
                         android:layout_height="55dp"
                         android:layout_below="@+id/SecondHoldingTitle"
                         android:layout_marginStart="300dp"
-                        android:hint="1초 파일: 1 ~ 12시간"
+                        android:hint="1초 파일 유지: 1시간"
                         tools:ignore="DuplicateIds">
 
                         <com.google.android.material.textfield.TextInputEditText
@@ -369,7 +373,8 @@
                             android:layout_height="match_parent"
                             android:textSize="14dp"
                             android:textStyle="bold"
-                            android:inputType="text" />
+                            android:inputType="numberDecimal"
+                            />
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <TextView
@@ -395,22 +400,13 @@
                         tools:ignore="DuplicateIds">
 
                         <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/W.H.HoldingEditText"
+                            android:id="@+id/whHoldingEditText"
                             android:layout_width="match_parent"
                             android:layout_height="match_parent"
                             android:textSize="14dp"
                             android:textStyle="bold"
-                            android:inputType="text" />
+                            android:inputType="numberDecimal" />
                     </com.google.android.material.textfield.TextInputLayout>
-
-                    <CheckBox
-                        android:layout_marginTop="10dp"
-                        android:layout_below="@+id/Text_field5"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="15dp"
-                        android:text="Real Time Clock SET"
-                        android:textStyle="bold"/>
 
                 </RelativeLayout>
             </androidx.cardview.widget.CardView>
@@ -449,132 +445,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="200dp"
                 android:layout_marginTop="15dp"
-                android:text="Device IP address"
-                android:textColor="@color/black"
-                android:textSize="20dp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/Text_field6"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="220dp"
-                android:layout_height="55dp"
-                android:layout_marginStart="400dp"
-                android:layout_marginTop="0dp"
-                android:hint="0 . 0 . 0 . 0"
-                tools:ignore="DuplicateIds">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/DIPEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="text"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                android:id="@+id/DSMTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/Text_field6"
-                android:layout_marginStart="200dp"
-                android:layout_marginTop="15dp"
-                android:text="Device Subnet mask"
-                android:textColor="@color/black"
-                android:textSize="20dp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/Text_field7"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="220dp"
-                android:layout_height="55dp"
-                android:layout_below="@+id/Text_field6"
-                android:layout_marginStart="400dp"
-                android:layout_marginTop="0dp"
-                android:hint="0 . 0 . 0 . 0"
-                tools:ignore="DuplicateIds">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/DSMEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="text"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                android:id="@+id/DGTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/Text_field7"
-                android:layout_marginStart="200dp"
-                android:layout_marginTop="15dp"
-                android:text="Device Gateway"
-                android:textColor="@color/black"
-                android:textSize="20dp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/Text_field8"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="220dp"
-                android:layout_height="55dp"
-                android:layout_below="@+id/Text_field7"
-                android:layout_marginStart="400dp"
-                android:layout_marginTop="0dp"
-                android:hint="0 . 0 . 0 . 0"
-                tools:ignore="DuplicateIds">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/DGEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="text"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                android:id="@+id/DPortTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/Text_field8"
-                android:layout_marginStart="200dp"
-                android:layout_marginTop="15dp"
-                android:text="Device Port"
-                android:textColor="@color/black"
-                android:textSize="20dp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/Text_field9"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="110dp"
-                android:layout_height="55dp"
-                android:layout_below="@+id/Text_field8"
-                android:layout_marginStart="400dp"
-                android:layout_marginTop="0dp"
-                android:hint="0 . 0 . 0 . 0"
-                tools:ignore="DuplicateIds">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/DPortEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="text"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <TextView
-                android:id="@+id/SIPAddressTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="700dp"
-                android:layout_marginTop="15dp"
                 android:text="Server IP address"
                 android:textColor="@color/black"
                 android:textSize="20dp"
@@ -585,7 +455,7 @@
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="220dp"
                 android:layout_height="55dp"
-                android:layout_marginStart="900dp"
+                android:layout_marginStart="400dp"
                 android:layout_marginTop="0dp"
                 android:hint="0 . 0 . 0 . 0"
                 tools:ignore="DuplicateIds">
@@ -599,17 +469,84 @@
                     android:textStyle="bold"/>
             </com.google.android.material.textfield.TextInputLayout>
 
+
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/Text_field7"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="220dp"
+                android:layout_height="55dp"
+                android:layout_below="@+id/Text_field6"
+                android:layout_marginStart="400dp"
+                android:layout_marginTop="0dp"
+                android:hint="0 . 0 . 0 . 0"
+                tools:ignore="DuplicateIds">
+
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/Text_field8"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="220dp"
+                android:layout_height="55dp"
+                android:layout_below="@+id/Text_field7"
+                android:layout_marginStart="400dp"
+                android:layout_marginTop="0dp"
+                android:hint="0 . 0 . 0 . 0"
+                tools:ignore="DuplicateIds">
+
+
+            </com.google.android.material.textfield.TextInputLayout>
+
             <TextView
-                android:id="@+id/SSMTitle"
+                android:id="@+id/DPortTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/Text_field6"
-                android:layout_marginStart="700dp"
+                android:layout_marginStart="200dp"
                 android:layout_marginTop="15dp"
-                android:text="Server Subnet mask"
+                android:text="1 Second Port"
                 android:textColor="@color/black"
                 android:textSize="20dp"
                 android:textStyle="bold" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/Text_field9"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="110dp"
+                android:layout_height="55dp"
+                android:layout_below="@+id/Text_field6"
+                android:layout_marginStart="400dp"
+                android:layout_marginTop="0dp"
+                android:hint="0 . 0 . 0 . 0"
+                tools:ignore="DuplicateIds">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/TPortEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:inputType="numberDecimal"
+                    android:textSize="14dp"
+                    android:textStyle="bold"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/Text_field6"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="220dp"
+                android:layout_height="55dp"
+                android:layout_marginStart="900dp"
+                android:layout_marginTop="0dp"
+                android:hint="0 . 0 . 0 . 0"
+                tools:ignore="DuplicateIds">
+
+            </com.google.android.material.textfield.TextInputLayout>
+
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/Text_field7"
@@ -622,26 +559,10 @@
                 android:hint="0 . 0 . 0 . 0"
                 tools:ignore="DuplicateIds">
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/SSMEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="text"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
+
             </com.google.android.material.textfield.TextInputLayout>
 
-            <TextView
-                android:id="@+id/SGTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/Text_field7"
-                android:layout_marginStart="700dp"
-                android:layout_marginTop="15dp"
-                android:text="Server Gateway"
-                android:textColor="@color/black"
-                android:textSize="20dp"
-                android:textStyle="bold" />
+
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/Text_field8"
@@ -654,23 +575,17 @@
                 android:hint="0 . 0 . 0 . 0"
                 tools:ignore="DuplicateIds">
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/SGEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="text"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
+
             </com.google.android.material.textfield.TextInputLayout>
 
             <TextView
                 android:id="@+id/SPortTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_below="@+id/Text_field8"
+                android:layout_below="@+id/Text_field6"
                 android:layout_marginStart="700dp"
                 android:layout_marginTop="15dp"
-                android:text="Server Port"
+                android:text="Zip File Port"
                 android:textColor="@color/black"
                 android:textSize="20dp"
                 android:textStyle="bold" />
@@ -680,17 +595,17 @@
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="110dp"
                 android:layout_height="55dp"
-                android:layout_below="@+id/Text_field8"
+                android:layout_below="@+id/Text_field6"
                 android:layout_marginStart="900dp"
                 android:layout_marginTop="0dp"
                 android:hint="0 . 0 . 0 . 0"
                 tools:ignore="DuplicateIds">
 
                 <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/SPortEditText"
+                    android:id="@+id/ZPortEditText"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:inputType="text"
+                    android:inputType="numberDecimal"
                     android:textSize="14dp"
                     android:textStyle="bold"/>
             </com.google.android.material.textfield.TextInputLayout>
@@ -710,7 +625,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/Text_field8"
-                android:text="취소"
+                android:text="나가기"
                 android:layout_marginStart="1150dp"
                 android:layout_marginTop="5dp"
                 android:backgroundTint="@color/cardview_dark_background"/>

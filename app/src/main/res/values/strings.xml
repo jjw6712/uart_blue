@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">uart_blue</string>
+    <string name="app_name">수충격 감지 시스템</string>
     <string-array name="sensor_types">
         <item>5kg</item>
         <item>20kg</item>
@@ -8,16 +8,16 @@
     </string-array>
 
     <string-array name="times">
-        <item>0s</item>
-        <item>1s</item>
-        <item>2s</item>
-        <item>3s</item>
-        <item>4s</item>
-        <item>5s</item>
-        <item>6s</item>
-        <item>7s</item>
-        <item>8s</item>
-        <item>9s</item>
-        <item>10s</item>
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
     </string-array>
 </resources>
