@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 
 public class TcpClient extends AsyncTask<Void, Void, Boolean> {
 
+    private static final String TAG = "TCP 클라이언트";
     private Context context;
     private Uri fileUri; // .zip 파일 URI
     private boolean isZip;
@@ -50,7 +51,10 @@ public class TcpClient extends AsyncTask<Void, Void, Boolean> {
     protected Boolean doInBackground(Void... voids) {
         SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
         String serverIP = sharedPreferences.getString("ServerIP", "");
-        int port = Integer.parseInt(isZip ? sharedPreferences.getString("ZPort", "") : sharedPreferences.getString("TPort", ""));
+        int Zport = Integer.parseInt(sharedPreferences.getString("ZPort", ""));
+        int TPort = Integer.parseInt(sharedPreferences.getString("TPort", ""));
+        int port = Integer.parseInt(String.valueOf(isZip ? Zport : TPort));
+        Log.e(TAG, "텍스트 포트: "+TPort+".Zip 포트: "+Zport);
         int tenMinutes = 600000; // 10분을 밀리초 단위로
 
         try {
