@@ -152,47 +152,26 @@ public class ReadThread extends Thread {
     }
 
     private void startPacketProcessing() {
-        final Runnable processor = () -> processPackets();
-        packetProcessorFuture = scheduler.scheduleAtFixedRate(processor, 1, 1, TimeUnit.SECONDS);
-
-        // 1초마다 패킷 수 출력 및 초기화
-        final Runnable packetCountLogger = () -> {
-            int packetsThisSecond = packetsReceivedPerSecond.getAndSet(0);
-            Log.d(TAG, "1초 동안 받은 패킷 수: " + packetsThisSecond);
+        final Runnable processor = new Runnable() {
+            public void run() {
+                processPackets();
+            }
         };
-        packetCountLoggerFuture = scheduler.scheduleAtFixedRate(packetCountLogger, 1, 1, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(processor, 0, 1, TimeUnit.SECONDS);
     }
 
     private void processPackets() {
-        long startSecond = System.currentTimeMillis() / 1000; // 처리 시작 시의 초
-        int packetsProcessed = 0;
-
-        while (!packetQueue.isEmpty() && packetsProcessed < 1000) {
+        long processingStartTime = System.currentTimeMillis(); // 패킷 처리 시작 시간 기록
+        int packetsToProcess = Math.min(1000, packetQueue.size());
+        for (int i = 0; i < packetsToProcess; i++) {
             byte[] packet = packetQueue.poll();
             if (packet != null) {
-                processPacket(packet); // 패킷 처리
-                packetsProcessed++;
-            }
-
-            // 현재 초가 변경되었는지 확인
-            if ((System.currentTimeMillis() / 1000) > startSecond) {
-                // 초가 변경되었다면, 루프 종료 (이번 초에 대한 처리 완료)
-                break;
-            }
-        }
-
-        // 처리된 패킷이 1000개 미만이고, 아직 현재 초가 끝나지 않았다면 나머지 시간 동안 대기
-        if (packetsProcessed < 1000 && (System.currentTimeMillis() / 1000) == startSecond) {
-            long waitTime = 1000 - (System.currentTimeMillis() % 1000);
-            try {
-                Thread.sleep(waitTime); // 현재 초의 남은 시간만큼 대기
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // 스레드 인터럽트 상태 복원
+                processPacket(packet, processingStartTime);
             }
         }
     }
 
-    private void processPacket(byte[] packet) {
+    private void processPacket(byte[] packet, long processingStartTime) {
         // STX, ETX 검증이 이미 완료된 상태
         byte checksum = calculateChecksum(packet, PACKET_SIZE - 1);
         if (packet[PACKET_SIZE - 1] == checksum) {  // 체크섬 검증
@@ -270,9 +249,9 @@ public class ReadThread extends Thread {
                 //Log.d(TAG, "압력: "+currentPressurePercentage);
             //}
 
-            long packetTimestamp = System.currentTimeMillis(); // Capture the precise moment of processing
+            // 패킷 처리 시작 시간을 기반으로 타임스탬프 생성
+            String timestamp = dateFormat.format(new Date(processingStartTime));
 
-            String timestamp = dateFormat.format(new Date(packetTimestamp));
 
             String logEntry = String.format(
                     "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d",
@@ -299,10 +278,11 @@ public class ReadThread extends Thread {
             }
             logEntries.append(logEntry + "\n");
             //long currentTime = System.currentTimeMillis();
-            if (localCounter >= 999) { // 지정된 시간 간격(1초)이 경과했는지 확인
+            if (localCounter >= 999) { // 1000개의 패킷이 처리되었는지 확인
                 if (logEntries.length() > 0) { // 로그 데이터가 있을 경우에만 저장
                     fileSaveThread.addData(logEntries.toString());
                     logEntries.setLength(0); // 로그 기록 초기화
+
                     byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout);
                     // Context와 바이너리 데이터를 사용하여 TcpClient 인스턴스 생성
                     TcpClient tcpClient = new TcpClient(context, decimalData );
