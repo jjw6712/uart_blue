@@ -54,46 +54,53 @@ public class TcpClient extends AsyncTask<Void, Void, Boolean> {
         int Zport = Integer.parseInt(sharedPreferences.getString("ZPort", ""));
         int TPort = Integer.parseInt(sharedPreferences.getString("TPort", ""));
         int port = Integer.parseInt(String.valueOf(isZip ? Zport : TPort));
-        Log.e(TAG, "텍스트 포트: "+TPort+".Zip 포트: "+Zport);
-        int tenMinutes = 600000; // 10분을 밀리초 단위로
 
-        try {
-            Socket socket = new Socket();
-            // 서버 주소와 포트 번호를 사용하여 연결을 시도하고 타임아웃을 설정
-            socket.connect(new InetSocketAddress(serverIP, port), tenMinutes);
-            try (OutputStream outputStream = socket.getOutputStream()) {
-                if (isZip && fileUri != null) {
-                    // .zip 파일 전송 로직
-                    try (InputStream fileInputStream = context.getContentResolver().openInputStream(fileUri)) {
-                        // 파일 이름을 서버로 전송
-                        outputStream.write((fileName + "\n").getBytes());
-                        outputStream.flush(); // 파일 이름 전송 후 버퍼 비우기
+        int retryInterval = 10000; // 재시도 간격 10초
+        int maxRetries = Integer.MAX_VALUE; // 최대 재시도 횟수 (무한대)
 
-                        // 파일 내용 전송
-                        byte[] buffer = new byte[4096];
-                        int length;
-                        while ((length = fileInputStream.read(buffer)) > 0) {
-                            outputStream.write(buffer, 0, length);
+        for (int retryCount = 0; retryCount < maxRetries; retryCount++) {
+            try {
+                Socket socket = new Socket();
+                socket.connect(new InetSocketAddress(serverIP, port), retryInterval);
+                try (OutputStream outputStream = socket.getOutputStream()) {
+                    if (isZip && fileUri != null) {
+                        try (InputStream fileInputStream = context.getContentResolver().openInputStream(fileUri)) {
+                            outputStream.write((fileName + "\n").getBytes());
+                            outputStream.flush();
+
+                            byte[] buffer = new byte[4096];
+                            int length;
+                            while ((length = fileInputStream.read(buffer)) > 0) {
+                                outputStream.write(buffer, 0, length);
+                            }
+                            outputStream.flush();
                         }
-                        outputStream.flush(); // 파일 전송 완료 후 버퍼 비우기
+                    } else if (binaryData != null) {
+                        outputStream.write(binaryData);
+                        outputStream.flush();
                     }
-                } else if (binaryData != null) {
-                    // 바이너리 데이터 전송 로직
-                    outputStream.write(binaryData);
-                    outputStream.flush(); // 바이너리 데이터 전송 완료 후 버퍼 비우기
+                    return true;
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    socket.close();
                 }
-                return true; // 전송 성공
             } catch (IOException e) {
                 e.printStackTrace();
-                return false; // 전송 실패
-            } finally {
-                socket.close();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false; // 연결 실패
+
+            // 재시도 간격만큼 대기
+            try {
+                Thread.sleep(retryInterval);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                return false;
+            }
         }
+
+        return false; // 최대 재시도 횟수를 초과하면 실패
     }
+
 
 
     @Override

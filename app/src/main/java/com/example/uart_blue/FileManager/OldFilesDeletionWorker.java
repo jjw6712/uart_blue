@@ -38,7 +38,12 @@ public class OldFilesDeletionWorker extends Worker {
         if (directory != null && directory.isDirectory()) {
             DocumentFile whDataDirectory = directory.findFile("W.H.Data");
             if (whDataDirectory != null && whDataDirectory.isDirectory()) {
-                for (DocumentFile file : whDataDirectory.listFiles()) {
+                DocumentFile[] files = whDataDirectory.listFiles();
+                if (files.length == 0) {
+                    Log.e(TAG, "W.H.Data 디렉토리에 파일이 없습니다.");
+                    return;
+                }
+                for (DocumentFile file : files) {
                     // 작업이 취소되었는지 확인
                     if (isStopped()) {
                         Log.e(TAG, "작업이 취소됨: 파일 삭제 작업 중단");
@@ -62,9 +67,14 @@ public class OldFilesDeletionWorker extends Worker {
                         }
                     }
                 }
+            } else {
+                Log.e(TAG, "W.H.Data 디렉토리를 찾을 수 없습니다.");
             }
+        } else {
+            Log.e(TAG, "지정된 경로에서 디렉토리를 찾을 수 없습니다.");
         }
     }
+
 
 
     private void scheduleNextRun() {

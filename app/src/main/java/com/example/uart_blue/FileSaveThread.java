@@ -31,7 +31,7 @@ public class FileSaveThread extends Thread {
     }
 
     public void run() {
-        while (running || !queue.isEmpty()) {
+        while (running || (queue != null && !queue.isEmpty())) {
             try {
                 String logEntries = queue.take();
                 saveDataToFile(logEntries);
@@ -49,6 +49,7 @@ public class FileSaveThread extends Thread {
         running = false;
         if (queue != null) {
             queue.clear();
+            queue = null;
         }
     }
 
@@ -66,33 +67,46 @@ public class FileSaveThread extends Thread {
             return deviceNumber;
         }
 
-        private void saveDataToFile (String logEntries){
-            if (directoryUri == null) {
-                Log.e(TAG, "No directory selected.");
-                return;
-            }
-
-            try {
-                DocumentFile pickedDir = DocumentFile.fromTreeUri(context, directoryUri);
-                DocumentFile dataDirectory = pickedDir.findFile("W.H.Data");
-                if (dataDirectory == null || !dataDirectory.exists()) {
-                    dataDirectory = pickedDir.createDirectory("W.H.Data");
-                }
-
-                String fileName = getFileName();
-                DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
-                try (OutputStream out = context.getContentResolver().openOutputStream(newFile.getUri())) {
-                    out.write(logEntries.getBytes());
-                    Log.d(TAG, "Saved data to " + fileName);
-                } catch (IOException e) {
-                    Log.e(TAG, "Error writing to file: " + e.getMessage());
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error accessing directory: " + e.getMessage());
-            }
+    private void saveDataToFile(String logEntries) {
+        if (directoryUri == null) {
+            Log.e(TAG, "No directory selected.");
+            return;
         }
 
-        private String getFileName () {
+        try {
+            DocumentFile pickedDir = DocumentFile.fromTreeUri(context, directoryUri);
+            DocumentFile dataDirectory = pickedDir.findFile("W.H.Data");
+            if (dataDirectory == null || !dataDirectory.exists()) {
+                dataDirectory = pickedDir.createDirectory("W.H.Data");
+            }
+
+            String fileName = getFileName();
+            // 동일한 이름의 파일이 이미 존재하는지 검사
+            DocumentFile existingFile = dataDirectory.findFile(fileName);
+            if (existingFile != null && existingFile.exists()) {
+                // 파일이 이미 존재한다면 해당 파일 삭제
+                boolean deleted = existingFile.delete();
+                if (!deleted) {
+                    Log.e(TAG, "기존파일 삭제 실패: " + fileName);
+                    return;
+                }
+                Log.d(TAG, "기존 파일 삭제 완료: " + fileName);
+            }
+
+            DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
+            try (OutputStream out = context.getContentResolver().openOutputStream(newFile.getUri())) {
+                out.write(logEntries.getBytes());
+                Log.d(TAG, "Saved data to " + fileName);
+            } catch (IOException e) {
+                Log.e(TAG, "Error writing to file: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error accessing directory: " + e.getMessage());
+        }
+    }
+
+
+    private String getFileName () {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
             return deviceNumber + "-" + dateFormat.format(new Date()) + ".txt";
         }

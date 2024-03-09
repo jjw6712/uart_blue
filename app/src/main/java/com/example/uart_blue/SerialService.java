@@ -116,7 +116,10 @@ public class SerialService extends Service {
             readThread.stopThreads();
         }
         // 앱에서 스케줄된 모든 작업을 취소
-        WorkManager.getInstance(getApplicationContext()).cancelAllWorkByTag("deleteOldFiles");
+        WorkManager.getInstance(getApplicationContext()).cancelAllWork();
+        if(readThread != null){
+            readThread = null;
+        }
     }
     public void startReadingData() {
         initializeSerialPort();

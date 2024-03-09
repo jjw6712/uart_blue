@@ -16,6 +16,8 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -37,7 +39,9 @@ import java.util.TimeZone;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import android.content.Context;
 import android.util.Log;
@@ -71,7 +75,13 @@ public class ReadThread extends Thread {
     OptionActivity optionActivity;
     private boolean isWhConditionProcessing = false; // wh 판단 로직 실행 중 플래그
     boolean isSleep = false;
-    SharedPreferences sharedPreferences;
+    int wh = 0;
+    private Handler zipFileSavedHandler = new Handler(Looper.getMainLooper());
+    private Runnable zipFileSavedRunnable;
+    private AtomicInteger packetsReceivedPerSecond = new AtomicInteger(0); // 1초마다 수신된 패킷 수 추적
+    private ScheduledFuture<?> packetProcessorFuture;
+    private ScheduledFuture<?> packetCountLoggerFuture;
+
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -125,12 +135,14 @@ public class ReadThread extends Thread {
                     packet[0] = readByte;
                     int count = 1;
                     while (count < PACKET_SIZE) { // 패킷 채우기
+                        if (mInputStream == null) return;
                         data = mInputStream.read();
                         if (data == -1) break;
                         packet[count++] = (byte) data;
                     }
                     if (packet[PACKET_SIZE - 2] == ETX) {
                         if(packetQueue !=null) packetQueue.offer(packet.clone()); // 패킷 큐에 추가
+                        packetsReceivedPerSecond.incrementAndGet(); // 패킷 수 증가
                     }
                 }
             } catch (IOException e) {
@@ -140,20 +152,42 @@ public class ReadThread extends Thread {
     }
 
     private void startPacketProcessing() {
-        final Runnable processor = new Runnable() {
-            public void run() {
-                processPackets();
-            }
+        final Runnable processor = () -> processPackets();
+        packetProcessorFuture = scheduler.scheduleAtFixedRate(processor, 1, 1, TimeUnit.SECONDS);
+
+        // 1초마다 패킷 수 출력 및 초기화
+        final Runnable packetCountLogger = () -> {
+            int packetsThisSecond = packetsReceivedPerSecond.getAndSet(0);
+            Log.d(TAG, "1초 동안 받은 패킷 수: " + packetsThisSecond);
         };
-        scheduler.scheduleAtFixedRate(processor, 0, 1, TimeUnit.SECONDS);
+        packetCountLoggerFuture = scheduler.scheduleAtFixedRate(packetCountLogger, 1, 1, TimeUnit.SECONDS);
     }
 
     private void processPackets() {
-        int packetsToProcess = Math.min(1000, packetQueue.size());
-        for (int i = 0; i < packetsToProcess; i++) {
+        long startSecond = System.currentTimeMillis() / 1000; // 처리 시작 시의 초
+        int packetsProcessed = 0;
+
+        while (!packetQueue.isEmpty() && packetsProcessed < 1000) {
             byte[] packet = packetQueue.poll();
             if (packet != null) {
-                processPacket(packet);
+                processPacket(packet); // 패킷 처리
+                packetsProcessed++;
+            }
+
+            // 현재 초가 변경되었는지 확인
+            if ((System.currentTimeMillis() / 1000) > startSecond) {
+                // 초가 변경되었다면, 루프 종료 (이번 초에 대한 처리 완료)
+                break;
+            }
+        }
+
+        // 처리된 패킷이 1000개 미만이고, 아직 현재 초가 끝나지 않았다면 나머지 시간 동안 대기
+        if (packetsProcessed < 1000 && (System.currentTimeMillis() / 1000) == startSecond) {
+            long waitTime = 1000 - (System.currentTimeMillis() % 1000);
+            try {
+                Thread.sleep(waitTime); // 현재 초의 남은 시간만큼 대기
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // 스레드 인터럽트 상태 복원
             }
         }
     }
@@ -184,23 +218,27 @@ public class ReadThread extends Thread {
 
             // stop 상태를 추출합니다. (2번째 비트)
             int stop = (statusByte & 0x04) >> 2; // 0x04 = 0000 0100
-            int wh = 0;
+            double currentPressurePercentage = pressurePercentage;
             // blackout 상태를 추출합니다. (1번째 비트)
             int blackout = (statusByte & 0x01); // 0x01 = 0000 0001
             byte etx = packet[6];
 
-            double currentPressurePercentage = calculatePercentageFromADC(pressure);
             // SensorDataManager에서 마지막 압력 백분율과 시간을 가져옵니다.
             SensorDataManager dataManager = SensorDataManager.getInstance();
             double lastPressurePercentage = dataManager.getLastPressurePercentage();
+            double lastPressurecount = dataManager.getLastPressurecount();
             long lastPressureTime = dataManager.getLastPressureTime();
             // 현재 시간을 기준으로 지난 시간을 계산합니다.
             long currentTime = System.currentTimeMillis();
             long timeDifference = currentTime - lastPressureTime;
-            double presspur = dataManager.getExpectedPressurePercentage();
-           //Log.d(TAG, "수압"+currentPressurePercentage+"이전 수압%"+lastPressurePercentage+"현재 시간"+timeDifference+"설정 시간"+presspur);
+            BigDecimal currentPressureRounded = BigDecimal.valueOf(currentPressurePercentage).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal lastPressurecountRounded = BigDecimal.valueOf(lastPressurecount).setScale(2, RoundingMode.HALF_UP);
+
+            //Log.d(TAG, "수압"+currentPressurePercentage+"이전 수압%"+lastPressurePercentage+"현재 시간"+timeDifference+"설정 시간"+presspur);
             // 만약 설정된 시간이 지났다면 현재 압력 백분율을 비교하여 wh 변수를 업데이트합니다.
             // 현재 압력 백분율과 시간을 업데이트하는 메서드 내부에서
+
+
             if (!isWhConditionProcessing && timeDifference >= dataManager.getSelectedTime() * 1000) {
                 // 첫 번째 데이터 수신 시 -1에서 업데이트되어 있는 경우를 고려하여 조건 수정
                 if (lastPressurePercentage == -1) {
@@ -208,23 +246,33 @@ public class ReadThread extends Thread {
                     dataManager.updatePressureData(currentPressurePercentage);
                 } else if (currentPressurePercentage > lastPressurePercentage && Math.abs(currentPressurePercentage - lastPressurePercentage) >= dataManager.getExpectedPressurePercentage()) {
                     isWhConditionProcessing = true; // wh 판단 로직 실행 중임을 나타냄
-                    wh = 1; // wh 상태로 판단
                     SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
                     int whcount = sharedPreferences.getInt("whcountui", 0);
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putInt("whcountui", whcount + 1);
                     editor.apply();
-                    ZipFIleSaved(); // 조건 충족 시 수행할 작업
+                    ZipFileSaved(); // 조건 충족 시 수행할 작업
                     Log.d(TAG, "현재수압" + currentPressurePercentage + "이전수압" + lastPressurePercentage);
                 }
                 // 여기서 현재 압력 백분율과 시간을 항상 업데이트합니다.
                 dataManager.updatePressureData(currentPressurePercentage);
+            }else if (isWhConditionProcessing) {
+                if (currentPressureRounded.compareTo(lastPressurecountRounded) > 0) {
+                    //Log.e(TAG, "이전 수압: " + lastPressurecountRounded + "현재 수압: " + currentPressureRounded);
+                    wh = 1; // 현재 수압이 이전 수압보다 높을 때 wh를 1로 설정
+                    dataManager.updatePressurecount(currentPressurePercentage); // lastPressurecount 업데이트
+                } else {
+                    wh = 0;
+                }
             }
+            dataManager.updatePressurecount(currentPressurePercentage); // lastPressurecount 업데이트
             //if(currentPressurePercentage == 99 || currentPressurePercentage == 0){
                 //Log.d(TAG, "압력: "+currentPressurePercentage);
             //}
-            // 현재 시간과 함께 로그 기록 생성
-            String timestamp = dateFormat.format(new Date());
+
+            long packetTimestamp = System.currentTimeMillis(); // Capture the precise moment of processing
+
+            String timestamp = dateFormat.format(new Date(packetTimestamp));
 
             String logEntry = String.format(
                     "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d",
@@ -336,8 +384,8 @@ public class ReadThread extends Thread {
         return percentage;
     }
 
-    public void ZipFIleSaved(){
-        Log.d(TAG, "GPIO 수격신호 수신");
+    public void ZipFileSaved() {
+        Log.d(TAG, "수격신호 수신");
         saveWHState(true);
         Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
         SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
@@ -348,7 +396,9 @@ public class ReadThread extends Thread {
 
         // 이벤트 발생 후 대기할 시간 계산
         long delay = afterMillis;
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+
+        // Define the task to be run
+        zipFileSavedRunnable = () -> {
             Uri directoryUri = Uri.parse(directoryUriString);
             List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
 
@@ -356,19 +406,19 @@ public class ReadThread extends Thread {
                 // eventTime을 기반으로 파일 이름 생성
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
                 String eventDateTime = sdf.format(eventTime);
-
-                String combinedFileName = deviceNumber+"-"+eventDateTime + ".txt";
-
-                if (!filesInRange.isEmpty()) {
-                    new FileProcessingTask(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
-                }
+                String combinedFileName = deviceNumber + "-" + eventDateTime + ".txt";
+                new FileProcessingTask(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
             } else {
                 Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
             }
             isWhConditionProcessing = false;
             saveWHState(false);
-        }, delay);
+        };
+
+        // Post the defined task to be run after the specified delay
+        zipFileSavedHandler.postDelayed(zipFileSavedRunnable, delay);
     }
+
 
     private void recommendSleepMode() { //슬립모드
         //stopThreads(); // 모든 스레드와 리소스 해제
@@ -410,12 +460,16 @@ public class ReadThread extends Thread {
         try {
             if (mInputStream != null) {
                 mInputStream.close();
+                mInputStream = null;
             }
             if (mOutputStream != null) {
+                mOutputStream.flush();
                 mOutputStream.close();
+                mOutputStream = null;
             }
             if (mSerialPort != null) {
                 mSerialPort.close();
+                mSerialPort = null;
             }
         } catch (IOException e) {
             Log.e(TAG, "Error closing resources: " + e.getMessage());
@@ -423,7 +477,7 @@ public class ReadThread extends Thread {
         // FileSaveThread 중단
         if (fileSaveThread != null) {
             fileSaveThread.stopSaving();  // FileSaveThread에 중단 신호 보내기
-            fileSaveThread.interrupt();   // FileSaveThread 중단
+            // FileSaveThread 중단
             fileSaveThread = null;        // 참조 해제
         }
 
@@ -432,13 +486,34 @@ public class ReadThread extends Thread {
             packetQueue.clear(); // packetQueue의 모든 요소 제거
             packetQueue = null;  // 참조 해제
         }
+        if (logEntries != null) {
+            logEntries = null;
+        }
 
-        // scheduler 종료
-        if (scheduler != null) {
-            scheduler.shutdownNow(); // 진행 중인 모든 작업을 중단하고 스레드 풀을 종료
-            scheduler = null;        // 참조 해제
+
+        if (dataReceiver != null) {
+            dataReceiver = null;
+        }
+        if (zipFileSavedHandler != null && zipFileSavedRunnable != null) {
+            zipFileSavedHandler.removeCallbacks(zipFileSavedRunnable);
+            zipFileSavedHandler = null;
+            zipFileSavedRunnable = null;
+        }
+        // 스케줄된 태스크 취소
+        if (packetProcessorFuture != null && !packetProcessorFuture.isCancelled()) {
+            packetProcessorFuture.cancel(true); // 태스크 취소
+        }
+
+        if (packetCountLoggerFuture != null && !packetCountLoggerFuture.isCancelled()) {
+            packetCountLoggerFuture.cancel(true); // 태스크 취소
+        }
+
+        // 필요한 경우 스케줄러 자체를 종료
+        if (!scheduler.isShutdown()) {
+            scheduler.shutdownNow();
         }
         saveGPIOState(false, true);
+        saveWHState(false);
         Log.d(TAG, "ReadThread, FileSaveThread, and scheduler stopped");
     }
     // GPIO 상태 저장

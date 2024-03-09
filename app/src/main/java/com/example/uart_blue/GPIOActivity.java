@@ -118,7 +118,7 @@ public class GPIOActivity {
 
     private void handleGpio28Active() {
         // GPIO 28 핀 활성화 시 실행할 로직
-       readThread.ZipFIleSaved();
+       readThread.ZipFileSaved();
     }
 
     }

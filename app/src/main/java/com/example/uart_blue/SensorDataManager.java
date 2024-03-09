@@ -8,6 +8,9 @@ public class SensorDataManager {
     private int selectedTime; // 초 단위
     private double lastPressurePercentage = -1;
     private long lastPressureTime = -1;
+    private long lastPressureCountTime = 1000;
+
+    private double lastPressurecount = -1;
 
 
     private SensorDataManager() {
@@ -59,6 +62,12 @@ public class SensorDataManager {
         }
     }
 
+    public synchronized void updatePressurecount(double currentPressurePercentage) {
+        lastPressurecount = currentPressurePercentage;
+    }
+    public synchronized double getLastPressurecount() {
+        return lastPressurecount;
+    }
 
 
     public synchronized double getLastPressurePercentage() {
