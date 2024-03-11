@@ -13,16 +13,18 @@ import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class FileSaveThread extends Thread {
     private BlockingQueue<String> queue = new LinkedBlockingQueue<>();
+    private ExecutorService executorService = Executors.newFixedThreadPool(5); // 파일 저장 작업을 위한 스레드 풀
     private Context context;
     private Uri directoryUri;
     private String deviceNumber;
     private boolean running = true;
     private static final String TAG = "FileSaveThread";
-
 
     public FileSaveThread(Context context) {
         this.context = context;
@@ -31,43 +33,38 @@ public class FileSaveThread extends Thread {
     }
 
     public void run() {
-        while (running || (queue != null && !queue.isEmpty())) {
+        while (running || !queue.isEmpty()) {
             try {
                 String logEntries = queue.take();
-                saveDataToFile(logEntries);
+                executorService.submit(() -> saveDataToFile(logEntries)); // 파일 저장 작업을 스레드 풀에 제출
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
+        executorService.shutdown(); // 스레드 풀 종료
     }
 
-    public void addData(String data) {
-        queue.add(data);
+    public void addData(String data, String timestamp) {
+        String entry = timestamp + "," + data;
+        queue.add(entry);
     }
 
     public void stopSaving() {
         running = false;
-        if (queue != null) {
-            queue.clear();
-            queue = null;
-        }
     }
 
-        private Uri getSavedDirectoryUri (Context context){
-            SharedPreferences prefs = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
-            String uriString = prefs.getString("directoryUri", "");
-            //Log.d(TAG, "getSavedDirectoryUri: "+uriString);
-            return uriString != null ? Uri.parse(uriString) : null;
-        }
+    private Uri getSavedDirectoryUri(Context context) {
+        SharedPreferences prefs = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        String uriString = prefs.getString("directoryUri", "");
+        return uriString != null ? Uri.parse(uriString) : null;
+    }
 
-        private String getDeviceNumber (Context context){
-            SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
-            deviceNumber = sharedPreferences.getString("deviceNumber", "");
-            Log.d(TAG, "getDeviceNumber: " + deviceNumber);
-            return deviceNumber;
-        }
+    private String getDeviceNumber(Context context) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        return sharedPreferences.getString("deviceNumber", "");
+    }
 
-    private void saveDataToFile(String logEntries) {
+    private void saveDataToFile(String entry) {
         if (directoryUri == null) {
             Log.e(TAG, "No directory selected.");
             return;
@@ -80,18 +77,10 @@ public class FileSaveThread extends Thread {
                 dataDirectory = pickedDir.createDirectory("W.H.Data");
             }
 
-            String fileName = getFileName();
-            // 동일한 이름의 파일이 이미 존재하는지 검사
-            DocumentFile existingFile = dataDirectory.findFile(fileName);
-            if (existingFile != null && existingFile.exists()) {
-                // 파일이 이미 존재한다면 해당 파일 삭제
-                boolean deleted = existingFile.delete();
-                if (!deleted) {
-                    Log.e(TAG, "기존파일 삭제 실패: " + fileName);
-                    return;
-                }
-                Log.d(TAG, "기존 파일 삭제 완료: " + fileName);
-            }
+            String timestamp = entry.substring(0, 24);
+            String logEntries = entry.substring(25);
+            String formattedTimestamp = timestamp.replace(", ", "-");
+            String fileName = getFileNameWithTimestamp(formattedTimestamp);
 
             DocumentFile newFile = dataDirectory.createFile("text/plain", fileName);
             try (OutputStream out = context.getContentResolver().openOutputStream(newFile.getUri())) {
@@ -105,10 +94,8 @@ public class FileSaveThread extends Thread {
         }
     }
 
-
-    private String getFileName () {
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
-            return deviceNumber + "-" + dateFormat.format(new Date()) + ".txt";
-        }
+    private String getFileNameWithTimestamp(String timestamp) {
+        return deviceNumber + "-" + timestamp + ".txt";
     }
+}
 

@@ -280,7 +280,7 @@ public class ReadThread extends Thread {
             //long currentTime = System.currentTimeMillis();
             if (localCounter >= 999) { // 1000개의 패킷이 처리되었는지 확인
                 if (logEntries.length() > 0) { // 로그 데이터가 있을 경우에만 저장
-                    fileSaveThread.addData(logEntries.toString());
+                    fileSaveThread.addData(logEntries.toString(), timestamp);
                     logEntries.setLength(0); // 로그 기록 초기화
 
                     byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout);
