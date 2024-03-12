@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.example.uart_blue.FileManager.FileManager;
 import com.example.uart_blue.FileManager.FileProcessingTask;
@@ -30,7 +31,9 @@ public class GPIOActivity {
     private boolean is138ActivePrev = false;
     private boolean is139ActivePrev = false;
     private boolean is28ActivePrev = false;
-    ReadThread readThread;
+    private Handler zipFileSavedHandler = new Handler(Looper.getMainLooper());
+    private Runnable zipFileSavedRunnable;
+
 
     // 생성자에서 OptionActivity 인스턴스를 받습니다.
     public GPIOActivity(OptionActivity optionActivity, Context context)  {
@@ -44,7 +47,7 @@ public class GPIOActivity {
             public void run() {
                 if (isGpioInputEnabled) {
                     updateGpioStatus();
-                    handler.postDelayed(this, 100); // 1초마다 반복
+                    handler.postDelayed(this, 0); // 1초마다 반복
                 }
             }
         };
@@ -81,7 +84,7 @@ public class GPIOActivity {
         boolean is28Active = gpioControl.isGpioActive(28);
 
         // GPIO 138 핀의 상태 변화 감지 및 처리
-        if (is138Active && !is138ActivePrev && isGpioInputEnabled) {
+        if (!is138Active && is138ActivePrev && isGpioInputEnabled) {
             // 스위치가 눌렸다가 떼어진 경우의 로직을 여기에 작성
             //optionActivity.startReadingDataFromGPIO();
             handleGpio138Active();
@@ -89,14 +92,14 @@ public class GPIOActivity {
         is138ActivePrev = is138Active; // 이전 상태 업데이트
 
         // GPIO 139 핀의 상태 변화 감지 및 처리
-        if (is139Active && !is139ActivePrev && isGpioInputEnabled) {
+        if (!is139Active && is139ActivePrev && isGpioInputEnabled) {
             // 스위치가 눌렸다가 떼어진 경우의 로직을 여기에 작성
             handleGpio139Active();
         }
         is139ActivePrev = is139Active; // 이전 상태 업데이트
 
         // GPIO 28 핀의 상태 변화 감지 및 처리
-        if (is28Active && !is28ActivePrev && isGpioInputEnabled) {
+        if (!is28Active && is28ActivePrev && isGpioInputEnabled) {
             // 스위치가 눌렸다가 떼어진 경우의 로직을 여기에 작성
             handleGpio28Active();
         }
@@ -106,19 +109,63 @@ public class GPIOActivity {
     private void handleGpio138Active() {
         // GPIO 138 핀 활성화 시 실행할 로직
         // SerialService를 통해 ReadThread 시작
-        Intent serviceIntent = new Intent(context, SerialService.class);
-        context.startService(serviceIntent);
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        boolean isGpio138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
+        boolean isGpio139Active = sharedPreferences.getBoolean("GPIO_139_ACTIVE", false);
+        if(isGpio138Active && !isGpio139Active){
+            Toast.makeText(context, "운전 중에는 운전버튼이 비활성화 됩니다.", Toast.LENGTH_LONG).show();
+        }else {
+            Intent serviceIntent = new Intent(context, SerialService.class);
+            context.startService(serviceIntent); // 서비스 시작
+        }
+
     }
 
     private void handleGpio139Active() {
         // GPIO 139 핀 활성화 시 실행할 로직
         Intent serviceIntent = new Intent(context, SerialService.class);
         context.stopService(serviceIntent); // 서비스 종료
+
     }
 
     private void handleGpio28Active() {
         // GPIO 28 핀 활성화 시 실행할 로직
-       readThread.ZipFileSaved();
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        boolean isGpio138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
+        if(!isGpio138Active){
+            Toast.makeText(context, "정지 상태에서는 수격 테스트가 불가능합니다.", Toast.LENGTH_LONG).show();
+        }else {
+            ZipFileSaved();
+        }
     }
+    public void ZipFileSaved() {
+        Log.d(TAG, "수격신호 수신");
+        Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        String directoryUriString = sharedPreferences.getString("directoryUri", "");
+        String deviceNumber = sharedPreferences.getString("deviceNumber", "");
+        long beforeMillis = 1000;
+        long afterMillis = 1000;
+        // 이벤트 발생 후 대기할 시간 계산
+        long delay = 1000;
 
+        // Define the task to be run
+        zipFileSavedRunnable = () -> {
+            Uri directoryUri = Uri.parse(directoryUriString);
+            List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
+
+            if (!filesInRange.isEmpty()) {
+                // eventTime을 기반으로 파일 이름 생성
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
+                String eventDateTime = sdf.format(eventTime);
+                String combinedFileName = deviceNumber + "-" + eventDateTime + ".txt";
+                new FileProcessingTask(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+            } else {
+                Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
+            }
+        };
+
+        // Post the defined task to be run after the specified delay
+        zipFileSavedHandler.postDelayed(zipFileSavedRunnable, delay);
+    }
     }

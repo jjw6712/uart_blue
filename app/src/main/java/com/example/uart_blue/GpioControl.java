@@ -55,6 +55,7 @@ public class GpioControl extends Thread{
         if (!gpioReadEnabled) {
             return false; // GPIO 읽기가 비활성화되어 있으면 항상 false 반환
         }
+        //Log.e(TAG, "GPIO 눌림");
         int value = readGpioValue(pin);
         return value == 0; // 활성 상태를 낮은 신호로 가정
     }

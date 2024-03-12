@@ -91,6 +91,18 @@
                         app:layout_constraintStart_toEndOf="@+id/text_field"
                         app:layout_constraintTop_toTopOf="parent" />
 
+                    <Button
+                        android:id="@+id/passwordChangeButton"
+                        android:layout_width="80dp"
+                        android:layout_height="55dp"
+                        android:layout_marginStart="140dp"
+                        android:layout_marginTop="55dp"
+                        android:text="변경"
+                        android:backgroundTint="@color/cardview_dark_background"
+                        app:layout_constraintBottom_toBottomOf="parent"
+                        app:layout_constraintStart_toEndOf="@+id/text_field"
+                        app:layout_constraintTop_toTopOf="parent" />
+
                 </androidx.constraintlayout.widget.ConstraintLayout>
             </androidx.cardview.widget.CardView>
 

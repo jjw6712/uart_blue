@@ -26,7 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 public class SerialService extends Service {
     private ReadThread readThread;
-    int days;
     private static final String CHANNEL_ID = "ForegroundServiceChannel";
 
     @Override
@@ -117,9 +116,9 @@ public class SerialService extends Service {
         }
         // 앱에서 스케줄된 모든 작업을 취소
         WorkManager.getInstance(getApplicationContext()).cancelAllWork();
-        if(readThread != null){
+        /*if(readThread != null){
             readThread = null;
-        }
+        }*/
     }
     public void startReadingData() {
         initializeSerialPort();
@@ -188,7 +187,8 @@ public class SerialService extends Service {
                 .addTag("deleteOldFiles")
                 .build();
         WorkManager.getInstance(getApplicationContext()).enqueue(oldFilesDeletionRequest);
-
+        SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        int days = sharedPreferences.getInt("intervalDays", 0);
         PeriodicWorkRequest zipFilesDeletionRequest = new PeriodicWorkRequest.Builder(ZipFilesDeletionWorker.class, days, TimeUnit.DAYS)
                 .addTag("deleteZipFiles")
                 .build();

@@ -36,8 +36,10 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -70,7 +72,7 @@ public class ReadThread extends Thread {
 
     private long lastSaveTime = System.currentTimeMillis(); // 마지막 저장 시간 초기화
     private int whcount = 0;
-    private ConcurrentLinkedQueue<byte[]> packetQueue = new ConcurrentLinkedQueue<>();
+    BlockingQueue<byte[]> packetQueue = new LinkedBlockingQueue<>(2000);
     private ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     OptionActivity optionActivity;
     private boolean isWhConditionProcessing = false; // wh 판단 로직 실행 중 플래그
@@ -81,7 +83,8 @@ public class ReadThread extends Thread {
     private AtomicInteger packetsReceivedPerSecond = new AtomicInteger(0); // 1초마다 수신된 패킷 수 추적
     private ScheduledFuture<?> packetProcessorFuture;
     private ScheduledFuture<?> packetCountLoggerFuture;
-
+    public TcpClient tcpClient;
+    private boolean isSerialPortOpen = false; // 시리얼 포트 열림 상태 추적
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -97,14 +100,22 @@ public class ReadThread extends Thread {
         this.dateFormat = new SimpleDateFormat("yyyy, MM, dd, HH, mm, ss");
         this.dateFormat.setTimeZone(TimeZone.getTimeZone("Asia/Seoul"));
 
-        try {
-            mSerialPort = new SerialPort(new File(portPath), baudRate, 0);
-            mInputStream = mSerialPort.getInputStream();
-            mOutputStream = mSerialPort.getOutputStream();
-            startPacketProcessing(); // 패킷 처리 시작
-        } catch (IOException e) {
-            Log.e(TAG, "Error opening serial port: " + e.getMessage());
-            handleError(e);
+        if (!isSerialPortOpen) { // 시리얼 포트가 열려 있지 않은 경우에만 실행
+            openSerialPort(portPath, baudRate);
+        }
+    }
+    public synchronized void openSerialPort(String portPath, int baudRate) {
+        if (mSerialPort == null) {
+            try {
+                mSerialPort = new SerialPort(new File(portPath), baudRate, 0);
+                mInputStream = mSerialPort.getInputStream();
+                mOutputStream = mSerialPort.getOutputStream();
+                isSerialPortOpen = true; // 시리얼 포트 열림
+                startPacketProcessing(); // 패킷 처리 시작
+            } catch (IOException e) {
+                Log.e(TAG, "Error opening serial port: " + e.getMessage());
+                handleError(e);
+            }
         }
     }
     public void sendDataToSerialPort(byte[] data) {
@@ -143,6 +154,7 @@ public class ReadThread extends Thread {
                     if (packet[PACKET_SIZE - 2] == ETX) {
                         if(packetQueue !=null) packetQueue.offer(packet.clone()); // 패킷 큐에 추가
                         packetsReceivedPerSecond.incrementAndGet(); // 패킷 수 증가
+                        //Log.d(TAG, "run: "+bytesToHex(packet));
                     }
                 }
             } catch (IOException e) {
@@ -152,12 +164,15 @@ public class ReadThread extends Thread {
     }
 
     private void startPacketProcessing() {
-        final Runnable processor = new Runnable() {
-            public void run() {
-                processPackets();
-            }
+        final Runnable processor = () -> processPackets();
+        packetProcessorFuture = scheduler.scheduleAtFixedRate(processor, 1, 1, TimeUnit.SECONDS);
+
+        // 1초마다 패킷 수 출력 및 초기화
+        final Runnable packetCountLogger = () -> {
+            int packetsThisSecond = packetsReceivedPerSecond.getAndSet(0);
+            Log.d(TAG, "1초 동안 받은 패킷 수: " + packetsThisSecond);
         };
-        scheduler.scheduleAtFixedRate(processor, 0, 1, TimeUnit.SECONDS);
+        packetCountLoggerFuture = scheduler.scheduleAtFixedRate(packetCountLogger, 1, 1, TimeUnit.SECONDS);
     }
 
     private void processPackets() {
@@ -285,7 +300,7 @@ public class ReadThread extends Thread {
 
                     byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout);
                     // Context와 바이너리 데이터를 사용하여 TcpClient 인스턴스 생성
-                    TcpClient tcpClient = new TcpClient(context, decimalData );
+                    tcpClient = new TcpClient(context, decimalData );
                     tcpClient.execute(); // AsyncTask 실행하여 서버로 데이터 전송
                     // 패킷 처리가 성공했을 때 Broadcast Intent 생성 및 전송
                     Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
@@ -300,7 +315,7 @@ public class ReadThread extends Thread {
             }
 
         } else {
-            Log.e(TAG, "체크섬 오류!!!");
+            //Log.e(TAG, "체크섬 오류!!!");
         }
     }
 
@@ -450,6 +465,7 @@ public class ReadThread extends Thread {
             if (mSerialPort != null) {
                 mSerialPort.close();
                 mSerialPort = null;
+                isSerialPortOpen = false; // 시리얼 포트 닫힘
             }
         } catch (IOException e) {
             Log.e(TAG, "Error closing resources: " + e.getMessage());
@@ -491,6 +507,9 @@ public class ReadThread extends Thread {
         // 필요한 경우 스케줄러 자체를 종료
         if (!scheduler.isShutdown()) {
             scheduler.shutdownNow();
+        }
+        if (tcpClient != null){
+            tcpClient = null;
         }
         saveGPIOState(false, true);
         saveWHState(false);

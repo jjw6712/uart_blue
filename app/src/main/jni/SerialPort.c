@@ -29,7 +29,7 @@ static const char *TAG="serial_port";
 #define LOGI(fmt, args...) __android_log_print(ANDROID_LOG_INFO,  TAG, fmt, ##args)
 #define LOGD(fmt, args...) __android_log_print(ANDROID_LOG_DEBUG, TAG, fmt, ##args)
 #define LOGE(fmt, args...) __android_log_print(ANDROID_LOG_ERROR, TAG, fmt, ##args)
-
+static int serialPortOpened = 0; // 시리얼 포트 열림 상태 추적을 위한 정적 변수
 static speed_t getBaudrate(jint baudrate)
 {
 	switch(baudrate) {
@@ -76,6 +76,12 @@ static speed_t getBaudrate(jint baudrate)
 JNIEXPORT jobject JNICALL Java_android_1serialport_1api_SerialPort_open
   (JNIEnv *env, jclass thiz, jstring path, jint baudrate, jint flags)
 {
+    // 이미 열려있는 경우 바로 반환
+    if (serialPortOpened) {
+        LOGE("Serial port already opened");
+        return NULL;
+    }
+
 	int fd;
 	speed_t speed;
 	jobject mFileDescriptor;
@@ -96,7 +102,7 @@ JNIEXPORT jobject JNICALL Java_android_1serialport_1api_SerialPort_open
 		const char *path_utf = (*env)->GetStringUTFChars(env, path, &iscopy);
 		LOGD("Opening serial port %s with flags 0x%x", path_utf, O_RDWR | flags);
 		fd = open(path_utf, O_RDWR | flags);
-		LOGD("open() fd = %d", fd);
+		LOGD("open() fd = %d!!", fd);
 		(*env)->ReleaseStringUTFChars(env, path, path_utf);
 		if (fd == -1)
 		{
@@ -104,7 +110,10 @@ JNIEXPORT jobject JNICALL Java_android_1serialport_1api_SerialPort_open
 			LOGE("Cannot open port");
 			/* TODO: throw an exception */
 			return NULL;
-		}
+		}else {
+            // 시리얼 포트가 성공적으로 열린 경우, 열림 상태를 표시
+            serialPortOpened = 1;
+        }
 	}
 
 	/* Configure device */
@@ -150,18 +159,30 @@ JNIEXPORT jobject JNICALL Java_android_1serialport_1api_SerialPort_open
  * Signature: ()V
  */
 JNIEXPORT void JNICALL Java_android_1serialport_1api_SerialPort_close
-  (JNIEnv *env, jobject thiz)
-{
-	jclass SerialPortClass = (*env)->GetObjectClass(env, thiz);
-	jclass FileDescriptorClass = (*env)->FindClass(env, "java/io/FileDescriptor");
+        (JNIEnv *env, jobject thiz) {
+    jclass SerialPortClass = (*env)->GetObjectClass(env, thiz);
+    jfieldID mFdID = (*env)->GetFieldID(env, SerialPortClass, "mFd", "Ljava/io/FileDescriptor;");
 
-	jfieldID mFdID = (*env)->GetFieldID(env, SerialPortClass, "mFd", "Ljava/io/FileDescriptor;");
-	jfieldID descriptorID = (*env)->GetFieldID(env, FileDescriptorClass, "descriptor", "I");
+    jobject mFd = (*env)->GetObjectField(env, thiz, mFdID);
+    if (mFd == NULL) {
+        // FileDescriptor가 null이면 이미 닫혀있는 것으로 간주, 추가 동작 없음
+        LOGD("FileDescriptor is null, possibly already closed");
+        return;
+    }
 
-	jobject mFd = (*env)->GetObjectField(env, thiz, mFdID);
-	jint descriptor = (*env)->GetIntField(env, mFd, descriptorID);
+    jclass FileDescriptorClass = (*env)->FindClass(env, "java/io/FileDescriptor");
+    jfieldID descriptorID = (*env)->GetFieldID(env, FileDescriptorClass, "descriptor", "I");
 
-	LOGD("close(fd = %d)", descriptor);
-	close(descriptor);
+    jint descriptor = (*env)->GetIntField(env, mFd, descriptorID);
+
+    if (descriptor != -1) {
+        LOGD("Closing serial port (fd = %d)", descriptor);
+        close(descriptor);
+        serialPortOpened = 0; // 시리얼 포트 열림 상태 업데이트
+        // FileDescriptor의 descriptor 필드를 -1로 설정
+        (*env)->SetIntField(env, mFd, descriptorID, -1);
+    } else {
+        LOGD("Serial port is not open or already closed");
+    }
 }
 

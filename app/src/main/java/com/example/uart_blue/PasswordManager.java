@@ -8,13 +8,13 @@ public class PasswordManager {
         return inputPassword.equals(currentPassword);
     }
 
-    // Method to update the ID (returns true if password is correct)
-    public boolean changeId(String newId, String inputPassword) {
-        if (verifyPassword(inputPassword)) {
-            // Logic to change the ID
-            // e.g., Update UI, store new ID, etc.
+    // Method to change the password (returns true if the old password is correct and the password was successfully changed)
+    public boolean changePassword(String oldPassword, String newPassword) {
+        if (verifyPassword(oldPassword)) {
+            currentPassword = newPassword; // Update the password
             return true;
         }
         return false;
     }
 }
+

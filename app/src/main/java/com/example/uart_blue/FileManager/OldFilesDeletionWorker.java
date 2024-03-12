@@ -26,54 +26,53 @@ public class OldFilesDeletionWorker extends Worker {
         String directoryUriStr = prefs.getString("directoryUri", "");
         if (!directoryUriStr.isEmpty()) {
             Uri directoryUri = Uri.parse(directoryUriStr);
-            deleteOldFiles(directoryUri); // 구현된 파일 삭제 로직
+            try {
+                deleteOldFiles(directoryUri);
+            } catch (Exception e) {
+                // 예외 발생 시 로그 출력 대신 적절한 예외 처리를 하거나, 필요한 경우 사용자에게 알림 등을 보냄
+                // 예: 오류 메시지를 사용자에게 보여주기, 오류 리포팅 등
+                Log.d(TAG, "파일 삭제 실패");
+            }
         }
-        // 작업이 완료된 후, 다시 이 작업을 스케줄링하여 반복
-        //scheduleNextRun();
         return Result.success();
     }
 
-    private void deleteOldFiles(Uri directoryUri) {
+    private void deleteOldFiles(Uri directoryUri) throws Exception {
         DocumentFile directory = DocumentFile.fromTreeUri(getApplicationContext(), directoryUri);
-        if (directory != null && directory.isDirectory()) {
-            DocumentFile whDataDirectory = directory.findFile("W.H.Data");
-            if (whDataDirectory != null && whDataDirectory.isDirectory()) {
-                DocumentFile[] files = whDataDirectory.listFiles();
-                if (files.length == 0) {
-                    Log.e(TAG, "W.H.Data 디렉토리에 파일이 없습니다.");
-                    return;
-                }
-                for (DocumentFile file : files) {
-                    // 작업이 취소되었는지 확인
-                    if (isStopped()) {
-                        Log.e(TAG, "작업이 취소됨: 파일 삭제 작업 중단");
-                        return; // 작업 중단
-                    }
+        if (directory == null || !directory.isDirectory()) {
+            throw new Exception("지정된 경로에서 디렉토리를 찾을 수 없습니다.");
+        }
 
-                    // 파일이 정상적이고, 파일 이름이 null이 아니며, .txt로 끝나는 경우에만 처리
-                    if (file.isFile()) {
-                        String fileName = file.getName();
-                        if (fileName != null && fileName.endsWith(".txt")) {
-                            long fileCreationTime = file.lastModified();
-                            long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000); // 1시간 전
-                            if (fileCreationTime < oneHourAgo) {
-                                boolean deleted = file.delete(); // 파일 삭제 시도
-                                if (deleted) {
-                                    Log.e(TAG, "1시간보다 오래된 파일 삭제 완료: " + fileName);
-                                } else {
-                                    Log.e(TAG, "파일 삭제 실패: " + fileName);
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                Log.e(TAG, "W.H.Data 디렉토리를 찾을 수 없습니다.");
+        DocumentFile whDataDirectory = directory.findFile("W.H.Data");
+        if (whDataDirectory == null || !whDataDirectory.isDirectory()) {
+            throw new Exception("W.H.Data 디렉토리를 찾을 수 없습니다.");
+        }
+
+        DocumentFile[] files = whDataDirectory.listFiles();
+        if (files.length == 0) {
+            throw new Exception("W.H.Data 디렉토리에 파일이 없습니다.");
+        }
+
+        for (DocumentFile file : files) {
+            if (isStopped()) {
+                throw new Exception("작업이 취소됨: 파일 삭제 작업 중단");
             }
-        } else {
-            Log.e(TAG, "지정된 경로에서 디렉토리를 찾을 수 없습니다.");
+
+            if (!file.isFile() || file.getName() == null || !file.getName().endsWith(".txt")) {
+                continue; // 조건에 맞지 않는 파일은 건너뛰기
+            }
+
+            long fileCreationTime = file.lastModified();
+            long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000); // 1시간 전
+            if (fileCreationTime < oneHourAgo) {
+                if (!file.delete()) {
+                    throw new Exception("파일 삭제 실패: " + file.getName());
+                }
+            }
         }
     }
+
+
 
 
 

@@ -67,7 +67,7 @@ public class OptionActivity extends AppCompatActivity {
     // PasswordManager 인스턴스 생성
     PasswordManager passwordManager = new PasswordManager(); //패스워드매니저 객체
     String deviceNumber; //디바이스 코드
-    private ReadThread readThread;
+
     public Uri directoryUri;  // 사용자가 선택한 디렉토리의 URI
     // 멤버 변수로 GPIOActivity 참조를 유지합니다.
     private GPIOActivity gpioActivity;
@@ -148,7 +148,11 @@ public class OptionActivity extends AppCompatActivity {
 
         pressEditText = findViewById(R.id.PressEditText);
         // GPIOActivity 인스턴스 생성 또는 가져오기
-        gpioActivity = new GPIOActivity(this, OptionActivity.this);
+        try {
+            gpioActivity = GPIOManager.getInstance(this);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         EditText beforeTimesEditText = findViewById(R.id.BeforeTimesEditText);
         EditText afterTimesEditText = findViewById(R.id.AfterTimesEditText);
@@ -247,6 +251,36 @@ public class OptionActivity extends AppCompatActivity {
                                             .setMessage("올바른 비밀번호가 아닙니다")
                                             .setPositiveButton("OK", null)
                                             .show();
+                                }
+                            }
+                        })
+                        .setNegativeButton("취소", null)
+                        .show();
+            }
+        });
+        Button passwordChangeButton = findViewById(R.id.passwordChangeButton);
+        passwordChangeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // 커스텀 레이아웃을 사용하여 다이얼로그 생성
+                LayoutInflater inflater = getLayoutInflater();
+                View dialogView = inflater.inflate(R.layout.password_change_dialog, null);
+                final EditText oldPasswordInput = dialogView.findViewById(R.id.oldPasswordInput);
+                final EditText newPasswordInput = dialogView.findViewById(R.id.newPasswordInput);
+
+                AlertDialog dialog = new AlertDialog.Builder(OptionActivity.this)
+                        .setTitle("Change Password")
+                        .setView(dialogView)
+                        .setPositiveButton("확인", new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int whichButton) {
+                                String oldPassword = oldPasswordInput.getText().toString();
+                                String newPassword = newPasswordInput.getText().toString();
+                                if (passwordManager.changePassword(oldPassword, newPassword)) {
+                                    // 패스워드 변경 성공
+                                    Toast.makeText(OptionActivity.this, "패스워드가 변경되었습니다.", Toast.LENGTH_SHORT).show();
+                                } else {
+                                    // 패스워드 변경 실패
+                                    Toast.makeText(OptionActivity.this, "올바른 현재 패스워드를 입력하세요.", Toast.LENGTH_SHORT).show();
                                 }
                             }
                         })
@@ -375,6 +409,15 @@ public class OptionActivity extends AppCompatActivity {
         pressEditText.setTextSize(10);
     }
 
+    public void startButton(){
+        Intent serviceIntent = new Intent(this, SerialService.class);
+        startService(serviceIntent); // 서비스 시작
+    }
+    public void stopButton(){
+        Intent serviceIntent = new Intent(this, SerialService.class);
+        stopService(serviceIntent); // 서비스 종료
+    }
+
     private void setupButtons() {
         Button sendButton1 = findViewById(R.id.btstart);
         sendButton1.setOnClickListener(view -> {
@@ -390,42 +433,50 @@ public class OptionActivity extends AppCompatActivity {
 
         Button sendButton2 = findViewById(R.id.btwh);
         sendButton2.setOnClickListener(v -> {
-            Log.d(TAG, "GPIO 수격신호 수신");
-            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-            intent.putExtra("GPIO_28_ACTIVE", true);
-            this.sendBroadcast(intent);
-            Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
+            // GPIO 28 핀 활성화 시 실행할 로직
             SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
-            String directoryUriString = sharedPreferences.getString("directoryUri", "");
-            long beforeMillis = sharedPreferences.getLong("beforeMillis", 0);
-            long afterMillis = sharedPreferences.getLong("afterMillis", 0);
-
-            // 이벤트 발생 후 대기할 시간 계산
-            long delay = afterMillis;
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                Uri directoryUri = Uri.parse(directoryUriString);
-                List<Uri> filesInRange = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
-
-                if (!filesInRange.isEmpty()) {
-                    // eventTime을 기반으로 파일 이름 생성
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
-                    String eventDateTime = sdf.format(eventTime);
-                    String combinedFileName = deviceNumber+"-"+eventDateTime + ".txt";
-                    Uri combinedFileUri = FileManager.combineTextFilesInRange(this, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
-
-                    if (combinedFileUri != null) {
-                        List<Uri> fileUris = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
-                        new FileProcessingTask(this, fileUris, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
-
-                    }
-                } else {
-                    Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
-                }
-            }, delay);
-
+            boolean isGpio138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
+            if(!isGpio138Active){
+                Toast.makeText(this, "정지 상태에서는 수격 테스트가 불가능합니다.", Toast.LENGTH_LONG).show();
+            }else {
+                ZipFileSaved();
+            }
         });
     }
+    private void ZipFileSaved(){
+        Log.d(TAG, "수격신호 수신");
+        Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
+        intent.putExtra("GPIO_28_ACTIVE", true);
+        this.sendBroadcast(intent);
+        Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
+        SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        String directoryUriString = sharedPreferences.getString("directoryUri", "");
+        String deviceNumber = sharedPreferences.getString("deviceNumber", "");
+        long beforeMillis = 1000;
+        long afterMillis = 1000;
+        // 이벤트 발생 후 대기할 시간 계산
+        long delay = 1000;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Uri directoryUri = Uri.parse(directoryUriString);
+            List<Uri> filesInRange = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
 
+            if (!filesInRange.isEmpty()) {
+                // eventTime을 기반으로 파일 이름 생성
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
+                String eventDateTime = sdf.format(eventTime);
+                String combinedFileName = deviceNumber+"-"+eventDateTime + ".txt";
+                Uri combinedFileUri = FileManager.combineTextFilesInRange(this, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
+
+                if (combinedFileUri != null) {
+                    List<Uri> fileUris = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
+                    new FileProcessingTask(this, fileUris, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+
+                }
+            } else {
+                Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
+            }
+        }, delay);
+    }
     private List<String> parseStorageInfo(String storageInfo) {
         List<String> storageDetails = new ArrayList<>();
         if (storageInfo != null && !storageInfo.isEmpty()) {
