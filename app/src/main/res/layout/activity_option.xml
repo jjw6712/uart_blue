@@ -137,6 +137,14 @@
                         android:textColor="@color/black"
                         android:textSize="15dp"
                         android:textStyle="bold" />
+                    <ImageButton
+                        android:id="@+id/btshow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/WaterHammerTitle"
+                        android:layout_marginStart="500dp"
+                        android:background="@drawable/ic_show_button"
+                        />
 
                     <Spinner
                         android:id="@+id/SensorTypeSpinner"
@@ -202,6 +210,7 @@
                         android:layout_below="@+id/PressTitle"
                         android:layout_marginStart="500dp"
                         android:backgroundTint="@color/cardview_dark_background"
+                        android:visibility="invisible"
                         />
                     <Button
                         android:id="@+id/btstop"
@@ -211,6 +220,7 @@
                         android:layout_below="@+id/btstart"
                         android:layout_marginStart="500dp"
                         android:backgroundTint="@color/cardview_dark_background"
+                        android:visibility="invisible"
                         />
                     <Button
                         android:id="@+id/btwh"
@@ -220,6 +230,7 @@
                         android:layout_below="@+id/btstop"
                         android:layout_marginStart="500dp"
                         android:backgroundTint="@color/cardview_dark_background"
+                        android:visibility="invisible"
                         />
                     <CheckBox
                         android:id="@+id/checkboxSwitchTest"

@@ -51,10 +51,19 @@ public class TcpClient extends AsyncTask<Void, Void, Boolean> {
     protected Boolean doInBackground(Void... voids) {
         SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
         String serverIP = sharedPreferences.getString("ServerIP", "");
-        int Zport = Integer.parseInt(sharedPreferences.getString("ZPort", ""));
-        int TPort = Integer.parseInt(sharedPreferences.getString("TPort", ""));
-        int port = Integer.parseInt(String.valueOf(isZip ? Zport : TPort));
+        String ZportStr = sharedPreferences.getString("ZPort", "");
+        String TPortStr = sharedPreferences.getString("TPort", "");
 
+        // 포트 번호의 기본값은 -1로 설정하여, 유효한 포트 번호가 설정되지 않았음을 나타냄
+        int Zport = ZportStr.isEmpty() ? -1 : Integer.parseInt(ZportStr);
+        int TPort = TPortStr.isEmpty() ? -1 : Integer.parseInt(TPortStr);
+        int port = isZip ? Zport : TPort;
+        // 서버 IP나 포트 번호가 유효하지 않은 경우 로컬에서 처리
+        if (serverIP.isEmpty() || port == -1) {
+            // 여기에 로컬에서 처리할 로직을 구현하세요.
+            // 예: 로컬 파일 시스템에 데이터를 저장하거나, 로컬 상태 업데이트 등
+            return handleLocalOperation();
+        }
         int retryInterval = 10000; // 재시도 간격 10초
         int maxRetries = Integer.MAX_VALUE; // 최대 재시도 횟수 (무한대)
 
@@ -102,7 +111,10 @@ public class TcpClient extends AsyncTask<Void, Void, Boolean> {
     }
 
 
-
+    private Boolean handleLocalOperation() {
+        Log.e(TAG, "네트워트 연결을 위한 정보가 올바르게 입력되지 않았습니다.");
+        return false; // 또는 작업의 성공/실패에 따라 true/false 반환
+    }
     @Override
     protected void onPostExecute(Boolean success) {
         Intent intent = new Intent("com.example.uart_blue.UPDATE_NETWORK_STATE");

@@ -28,6 +28,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -75,7 +76,9 @@ public class OptionActivity extends AppCompatActivity {
     private EditText pressEditText, SIPEditText, TPortEditText, ZPortEditText;
     private double maxPressure;
     int days;
-
+    ImageButton btShow;
+    Button btstart, btstop, btwh;
+    private boolean areButtonsVisible = true;
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint({"RestrictedApi", "MissingInflatedId"})
     @Override
@@ -83,6 +86,32 @@ public class OptionActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
         checkStoragePermission();
+
+        btShow = findViewById(R.id.btshow);
+        btstart = findViewById(R.id.btstart);
+        btstop = findViewById(R.id.btstop);
+        btwh = findViewById(R.id.btwh);
+        // btShow에 OnLongClickListener를 설정합니다.
+        btShow.setOnLongClickListener(view -> {
+            // areButtonsVisible 플래그를 이용하여 버튼들의 가시성을 전환합니다.
+            if (areButtonsVisible) {
+                // 버튼들을 숨깁니다.
+                btstart.setVisibility(View.INVISIBLE);
+                btstop.setVisibility(View.INVISIBLE);
+                btwh.setVisibility(View.INVISIBLE);
+            } else {
+                // 버튼들을 보여줍니다.
+                btstart.setVisibility(View.VISIBLE);
+                btstop.setVisibility(View.VISIBLE);
+                btwh.setVisibility(View.VISIBLE);
+            }
+
+            // 가시성 상태를 전환합니다.
+            areButtonsVisible = !areButtonsVisible;
+
+            // 이벤트가 처리되었음을 나타내기 위해 true를 반환합니다.
+            return true;
+        });
 
         SIPEditText = findViewById(R.id.SIPEditText);
         TPortEditText = findViewById(R.id.TPortEditText);
@@ -409,30 +438,22 @@ public class OptionActivity extends AppCompatActivity {
         pressEditText.setTextSize(10);
     }
 
-    public void startButton(){
-        Intent serviceIntent = new Intent(this, SerialService.class);
-        startService(serviceIntent); // 서비스 시작
-    }
-    public void stopButton(){
-        Intent serviceIntent = new Intent(this, SerialService.class);
-        stopService(serviceIntent); // 서비스 종료
-    }
 
     private void setupButtons() {
-        Button sendButton1 = findViewById(R.id.btstart);
-        sendButton1.setOnClickListener(view -> {
+        btstart = findViewById(R.id.btstart);
+        btstart.setOnClickListener(view -> {
             Intent serviceIntent = new Intent(this, SerialService.class);
             startService(serviceIntent); // 서비스 시작
         });
 
-        Button sendButton0 = findViewById(R.id.btstop);
-        sendButton0.setOnClickListener(v -> {
+        btstop = findViewById(R.id.btstop);
+        btstop.setOnClickListener(v -> {
             Intent serviceIntent = new Intent(this, SerialService.class);
             stopService(serviceIntent); // 서비스 종료
         });
 
-        Button sendButton2 = findViewById(R.id.btwh);
-        sendButton2.setOnClickListener(v -> {
+        btwh = findViewById(R.id.btwh);
+        btwh.setOnClickListener(v -> {
             // GPIO 28 핀 활성화 시 실행할 로직
             SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
             boolean isGpio138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
