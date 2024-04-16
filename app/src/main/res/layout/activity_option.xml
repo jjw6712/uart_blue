@@ -436,11 +436,23 @@
         </LinearLayout>
     </LinearLayout>
     <!-- 추가될 새로운 CardView -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:orientation="horizontal"
+        android:weightSum="2">
+
+        <LinearLayout
+            android:layout_width="10dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:padding="0dp">
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_marginEnd="10dp"
+        android:layout_marginStart="5dp"
+        android:layout_marginEnd="5.6dp"
         app:cardElevation="14dp"
         app:cardCornerRadius="4dp"
         tools:ignore="ExtraText">
@@ -513,7 +525,7 @@
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/Text_field8"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="220dp"
+                android:layout_width="110dp"
                 android:layout_height="55dp"
                 android:layout_below="@+id/Text_field7"
                 android:layout_marginStart="400dp"
@@ -522,6 +534,13 @@
                 tools:ignore="DuplicateIds">
 
 
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/ZPortEditText"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:inputType="numberDecimal"
+                    android:textSize="14dp"
+                    android:textStyle="bold" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <TextView
@@ -556,6 +575,30 @@
                     android:textStyle="bold"/>
             </com.google.android.material.textfield.TextInputLayout>
 
+            <TextView
+                android:id="@+id/SPortTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/Text_field9"
+                android:layout_marginStart="200dp"
+                android:layout_marginTop="15dp"
+                android:text="Zip File Port"
+                android:textColor="@color/black"
+                android:textSize="20dp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/Text_field9"
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="110dp"
+                android:layout_height="55dp"
+                android:layout_below="@+id/Text_field6"
+                android:layout_marginStart="900dp"
+                android:layout_marginTop="0dp"
+                android:hint="0 . 0 . 0 . 0"
+                tools:ignore="DuplicateIds">
+
+            </com.google.android.material.textfield.TextInputLayout>
 
 
             <com.google.android.material.textfield.TextInputLayout
@@ -601,58 +644,228 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
-            <TextView
-                android:id="@+id/SPortTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/Text_field6"
-                android:layout_marginStart="700dp"
-                android:layout_marginTop="15dp"
-                android:text="Zip File Port"
-                android:textColor="@color/black"
-                android:textSize="20dp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/Text_field9"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                android:layout_width="110dp"
-                android:layout_height="55dp"
-                android:layout_below="@+id/Text_field6"
-                android:layout_marginStart="900dp"
-                android:layout_marginTop="0dp"
-                android:hint="0 . 0 . 0 . 0"
-                tools:ignore="DuplicateIds">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/ZPortEditText"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:inputType="numberDecimal"
-                    android:textSize="14dp"
-                    android:textStyle="bold"/>
-            </com.google.android.material.textfield.TextInputLayout>
 
             <Button
-                android:id="@+id/btsave"
+                android:id="@+id/btsavenull"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/Text_field8"
                 android:text="저장"
                 android:layout_marginStart="1050dp"
                 android:layout_marginTop="5dp"
-                android:backgroundTint="@color/cardview_dark_background"/>
+                android:backgroundTint="@color/cardview_dark_background"
+                android:visibility="invisible"/>
 
             <Button
-                android:id="@+id/btcancel"
+                android:id="@+id/btcancelnull"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/Text_field8"
                 android:text="나가기"
                 android:layout_marginStart="1150dp"
                 android:layout_marginTop="5dp"
-                android:backgroundTint="@color/cardview_dark_background"/>
+                android:backgroundTint="@color/cardview_dark_background"
+                android:visibility="invisible"/>
         </RelativeLayout>
     </androidx.cardview.widget.CardView>
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="10dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:padding="0dp">
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_marginEnd="10dp"
+                app:cardElevation="14dp"
+                app:cardCornerRadius="4dp"
+                tools:ignore="ExtraText">
 
+                <RelativeLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:id="@+id/CollectionTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginTop="0dp"
+                        android:layout_marginEnd="0dp"
+                        android:layout_marginBottom="0dp"
+                        android:text="Collection"
+                        android:textSize="25dp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/PressTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="30dp"
+                        android:layout_marginTop="50dp"
+                        android:text="Press 보정"
+                        android:textColor="@color/black"
+                        android:textSize="15dp"
+                        android:textStyle="bold"
+                        tools:ignore="DuplicateIds" />
+                    <Spinner
+                        android:id="@+id/PressSpinner"
+                        android:layout_width="150dp"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/PressTitle"
+                        android:layout_marginStart="30dp"
+                        android:tooltipText="Sensor Type" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/Text_field10"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="220dp"
+                        android:layout_height="55dp"
+                        android:layout_marginStart="200dp"
+                        android:layout_marginTop="50dp"
+                        android:hint="압력"
+                        tools:ignore="DuplicateIds"
+                        app:endIconMode="clear_text">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/PressColEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:inputType="text"
+                            android:textSize="14dp"
+                            android:textStyle="bold" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/Text_field7"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="220dp"
+                        android:layout_height="55dp"
+                        android:layout_below="@+id/Text_field6"
+                        android:layout_marginStart="400dp"
+                        android:layout_marginTop="0dp"
+                        android:hint="0 . 0 . 0 . 0"
+                        tools:ignore="DuplicateIds">
+
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:id="@+id/WLevelTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/PressSpinner"
+                        android:layout_marginStart="30dp"
+                        android:layout_marginTop="15dp"
+                        android:text="W.Level 보정"
+                        android:textColor="@color/black"
+                        android:textSize="15dp"
+                        android:textStyle="bold" />
+                    <Spinner
+                        android:id="@+id/WLevelSpinner"
+                        android:layout_width="150dp"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/WLevelTitle"
+                        android:layout_marginStart="30dp"
+                        android:tooltipText="Sensor Type" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/Text_field11"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="220dp"
+                        android:layout_height="55dp"
+                        android:layout_below="@+id/Text_field6"
+                        android:layout_marginStart="200dp"
+                        android:layout_marginTop="50dp"
+                        android:hint="수위"
+                        tools:ignore="DuplicateIds"
+                        app:endIconMode="clear_text"
+                        >
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/WLevelColEditText"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:inputType="text"
+                            android:textSize="14dp"
+                            android:textStyle="bold"
+                            />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/Text_field9"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="110dp"
+                        android:layout_height="55dp"
+                        android:layout_below="@+id/Text_field6"
+                        android:layout_marginStart="900dp"
+                        android:layout_marginTop="0dp"
+                        android:hint="수위"
+                        tools:ignore="DuplicateIds">
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/Text_field6"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="220dp"
+                        android:layout_height="55dp"
+                        android:layout_marginStart="900dp"
+                        android:layout_marginTop="0dp"
+                        android:hint="0 . 0 . 0 . 0"
+                        tools:ignore="DuplicateIds">
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+
+
+
+
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/Text_field8"
+                        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                        android:layout_width="220dp"
+                        android:layout_height="55dp"
+                        android:layout_below="@+id/Text_field7"
+                        android:layout_marginStart="900dp"
+                        android:layout_marginTop="0dp"
+                        android:hint="0 . 0 . 0 . 0"
+                        tools:ignore="DuplicateIds">
+
+
+                    </com.google.android.material.textfield.TextInputLayout>
+
+
+                    <Button
+                        android:id="@+id/btsave"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/Text_field8"
+                        android:text="저장"
+                        android:layout_marginStart="500dp"
+                        android:layout_marginTop="5dp"
+                        android:backgroundTint="@color/cardview_dark_background"/>
+
+                    <Button
+                        android:id="@+id/btcancel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@+id/Text_field8"
+                        android:text="나가기"
+                        android:layout_marginStart="600dp"
+                        android:layout_marginTop="5dp"
+                        android:backgroundTint="@color/cardview_dark_background"/>
+                </RelativeLayout>
+            </androidx.cardview.widget.CardView>
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>

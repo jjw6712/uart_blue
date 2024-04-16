@@ -1,6 +1,7 @@
 package com.example.uart_blue;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -25,6 +26,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.example.uart_blue.Network.NetworkStateReceiver;
@@ -46,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
     int wh;
     SharedPreferences sharedPreferences;
     private SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener;
-    TextView textViewWHCounterValue;
+    TextView textViewWHCounterValue, textViewPressValue, textViewWLevelValue;
     private final Runnable runnable = new Runnable() {
         @Override
         public void run() {
@@ -73,6 +75,7 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -97,6 +100,38 @@ public class MainActivity extends AppCompatActivity {
         tvWH = findViewById(R.id.tvWH);
 
         textViewWHCounterValue = findViewById(R.id.textViewWHCounterValue);
+        textViewPressValue = findViewById(R.id.textViewPressValue);
+        textViewWLevelValue = findViewById(R.id.textViewW_LevelValue);
+
+        // SharedPreferences에서 값 로드
+        sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        String pressDirection = sharedPreferences.getString("PressDirection", "+");
+        float pressCorrection = sharedPreferences.getFloat("PressCorrection", 0);
+        float wLevelCorrection = sharedPreferences.getFloat("WLevelCorrection", 0);
+        String wLevelDirection = sharedPreferences.getString("WLevelDirection", "+");
+        // TextView 찾기
+        TextView textViewPressColValue = findViewById(R.id.textViewPressColValue);
+        TextView textViewWLevelColValue = findViewById(R.id.textViewWLevelColValue);
+
+        // 보정값을 문자열 형태로 포매팅
+        String PresscorrectionText = String.format(Locale.US, "%s %.2f", pressDirection, pressCorrection);
+        String WLevelcorrectionText = String.format(Locale.US, "%s %.2f", wLevelDirection, wLevelCorrection);
+
+        // TextView에 텍스트 설정
+        textViewPressColValue.setText(PresscorrectionText);
+        textViewWLevelColValue.setText(WLevelcorrectionText);
+
+        // Press 보정값을 문자열 형태로 포매팅 및 색상 설정
+        String pressCorrectionText = String.format(Locale.US, "%s %.2f", pressDirection, pressCorrection);
+        textViewPressColValue.setText(pressCorrectionText);
+        int pressTextColor = "+".equals(pressDirection) ? ContextCompat.getColor(this, R.color.blue) : ContextCompat.getColor(this, R.color.red);
+        textViewPressColValue.setTextColor(pressTextColor);
+
+// WLevel 보정값을 문자열 형태로 포매팅 및 색상 설정
+        String wLevelCorrectionText = String.format(Locale.US, "%s %.2f", wLevelDirection, wLevelCorrection);
+        textViewWLevelColValue.setText(wLevelCorrectionText);
+        int wLevelTextColor = "+".equals(wLevelDirection) ? ContextCompat.getColor(this, R.color.blue) : ContextCompat.getColor(this, R.color.red);
+        textViewWLevelColValue.setTextColor(wLevelTextColor);
         // SharedPreferences 초기화
         sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
 
@@ -104,16 +139,61 @@ public class MainActivity extends AppCompatActivity {
         preferenceChangeListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
             @Override
             public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-                if ("whcountui".equals(key)) {
-                    int whcountui = sharedPreferences.getInt(key, 0);
-                    // WH 카운터 UI 업데이트
-                    updateUI(whcountui);
-                } else if ("GPIO_138_ACTIVE".equals(key) || "GPIO_139_ACTIVE".equals(key) || "GPIO_28_ACTIVE".equals(key)) {
-                    // GPIO 상태가 변경되었을 때의 UI 업데이트
-                    boolean is138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
-                    boolean is139Active = sharedPreferences.getBoolean("GPIO_139_ACTIVE", false);
-                    boolean is28Active = sharedPreferences.getBoolean("GPIO_28_ACTIVE", false);
-                    updateGPIOUI(is138Active, is139Active, is28Active);
+                switch (key) {
+                    case "whcountui":
+                        int whcountui = sharedPreferences.getInt(key, 0);
+                        updateWHUI(whcountui);
+                        break;
+                    case "GPIO_138_ACTIVE":
+                    case "GPIO_139_ACTIVE":
+                    case "GPIO_28_ACTIVE":
+                        boolean is138Active = sharedPreferences.getBoolean("GPIO_138_ACTIVE", false);
+                        boolean is139Active = sharedPreferences.getBoolean("GPIO_139_ACTIVE", false);
+                        boolean is28Active = sharedPreferences.getBoolean("GPIO_28_ACTIVE", false);
+                        updateGPIOUI(is138Active, is139Active, is28Active);
+                        break;
+                    case "Press":
+                    case "WLevel":
+                        loadCorrectionSettings();
+                        break;
+                }
+            }
+            private void loadCorrectionSettings() {
+                SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+                float pressCorrection = sharedPreferences.getFloat("PressCorrection", 0);
+                String pressDirection = sharedPreferences.getString("PressDirection", "+");
+                float wLevelCorrection = sharedPreferences.getFloat("WLevelCorrection", 0);
+                String wLevelDirection = sharedPreferences.getString("WLevelDirection", "+");
+                float Press = sharedPreferences.getFloat("Press", 0);
+                float WLevel = sharedPreferences.getFloat("WLevel", 0);
+                String selectedSensorType = sharedPreferences.getString("SelectedSensorType", "");
+                double sensorMaxPressure = getSensorMaxPressure(selectedSensorType);
+                double calculatedPressValue = (sensorMaxPressure * Press) / 100;
+
+                applyCorrectionToDisplayValues(calculatedPressValue, pressCorrection, pressDirection, WLevel, wLevelCorrection, wLevelDirection);
+            }
+
+            private void applyCorrectionToDisplayValues(double Press, float pressCorrection, String pressDirection,
+                                                        double WLevel, float wLevelCorrection, String wLevelDirection) {
+                // 보정 적용
+                //Press = pressDirection.equals("+") ? Press + Press * (pressCorrection / 100) : Press - Press * (pressCorrection / 100);
+                Press = pressDirection.equals("+") ? Press + pressCorrection : Press - pressCorrection;
+                //WLevel = wLevelDirection.equals("+") ? WLevel + WLevel * (wLevelCorrection / 100) : WLevel - WLevel * (wLevelCorrection / 100);
+                WLevel = wLevelDirection.equals("+") ? WLevel + wLevelCorrection : WLevel - wLevelCorrection;
+
+                updatePressUI(Press);
+                updateWLevelUI(WLevel);
+            }
+            private double getSensorMaxPressure(String selectedSensorType) {
+                switch (selectedSensorType) {
+                    case "5kg":
+                        return 4.0;
+                    case "20kg":
+                        return 16.0;
+                    case "30kg":
+                        return 24.0;
+                    default:
+                        return 80.0;
                 }
             }
         };
@@ -121,7 +201,7 @@ public class MainActivity extends AppCompatActivity {
 
         // 앱 시작 시 초기 값으로 UI 업데이트
         int whcountui = sharedPreferences.getInt("whcountui", 0);
-        updateUI(whcountui);
+        updateWHUI(whcountui);
 
         networkStateReceiver = new NetworkStateReceiver();
         buttonOption = findViewById(R.id.buttonOption);
@@ -151,7 +231,7 @@ public class MainActivity extends AppCompatActivity {
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putInt("whcountui", 0);
                 editor.apply();
-                updateUI(0); // UI를 즉시 업데이트하여 0을 표시합니다.
+                updateWHUI(0); // UI를 즉시 업데이트하여 0을 표시합니다.
             }
         });
     }
@@ -218,9 +298,17 @@ public class MainActivity extends AppCompatActivity {
         // UI 업데이트 로직
         updateGPIOUI(is138Active, is139Active, is28Active);
     }
-    private void updateUI(int count) {
+    private void updateWHUI(int count) {
         // UI 스레드에서 TextView 업데이트
         runOnUiThread(() -> textViewWHCounterValue.setText(String.valueOf(count)));
+    }
+    private void updatePressUI(double Press) {
+        // UI 스레드에서 TextView 업데이트
+        runOnUiThread(() -> textViewPressValue.setText(String.format("%.2f Kg/cm²", Press)));
+    }
+    private void updateWLevelUI(double WLevel) {
+        // UI 스레드에서 TextView 업데이트
+        runOnUiThread(() -> textViewWLevelValue.setText(String.format("%.2f %%", WLevel)));
     }
     private BroadcastReceiver uiUpdateReceiver = new BroadcastReceiver() {
         @Override

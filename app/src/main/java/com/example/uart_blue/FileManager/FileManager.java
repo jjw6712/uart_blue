@@ -3,6 +3,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -96,9 +97,10 @@ public class FileManager {
             }
             zos.closeEntry();
             Log.e("FileManager", "파일 압축 완료11");
-            Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-            intent.putExtra("GPIO_28_ACTIVE", false);
-            context.sendBroadcast(intent);
+            SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putBoolean("GPIO_28_ACTIVE", false);
+            editor.apply();
         } catch (IOException e) {
             Log.e("FileManager", "Error compressing file", e);
         }

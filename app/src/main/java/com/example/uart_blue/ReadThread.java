@@ -1,5 +1,7 @@
 package com.example.uart_blue;
 
+import static android.content.Context.MODE_PRIVATE;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -85,6 +87,7 @@ public class ReadThread extends Thread {
     private ScheduledFuture<?> packetCountLoggerFuture;
     public TcpClient tcpClient;
     private boolean isSerialPortOpen = false; // 시리얼 포트 열림 상태 추적
+    private boolean isstop = false;
 
     // 콜백 인터페이스 정의
     public interface IDataReceiver {
@@ -212,10 +215,28 @@ public class ReadThread extends Thread {
 
             // stop 상태를 추출합니다. (2번째 비트)
             int stop = (statusByte & 0x04) >> 2; // 0x04 = 0000 0100
+
             double currentPressurePercentage = pressurePercentage;
             // blackout 상태를 추출합니다. (1번째 비트)
             int blackout = (statusByte & 0x01); // 0x01 = 0000 0001
             byte etx = packet[6];
+            SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+            String selectedSensorType = sharedPreferences.getString("SelectedSensorType", "");
+            String sensor = "";
+            if (selectedSensorType.equals("5kg")){
+                sensor = "1";
+            } else if (selectedSensorType.equals("20kg")) {
+                sensor = "2";
+            }
+            else if (selectedSensorType.equals("30kg")) {
+                sensor = "3";
+            }else {
+                sensor = "4";
+            }
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putFloat("Press", (float) pressurePercentage);
+            editor.putFloat("WLevel", (float) waterLevelPercentage);
+            editor.apply(); // 변경 사항을 한 번에 적용
 
             // SensorDataManager에서 마지막 압력 백분율과 시간을 가져옵니다.
             SensorDataManager dataManager = SensorDataManager.getInstance();
@@ -231,32 +252,28 @@ public class ReadThread extends Thread {
             //Log.d(TAG, "수압"+currentPressurePercentage+"이전 수압%"+lastPressurePercentage+"현재 시간"+timeDifference+"설정 시간"+presspur);
             // 만약 설정된 시간이 지났다면 현재 압력 백분율을 비교하여 wh 변수를 업데이트합니다.
             // 현재 압력 백분율과 시간을 업데이트하는 메서드 내부에서
+            // 수압 백분율 계산
 
-
-            if (!isWhConditionProcessing && timeDifference >= dataManager.getSelectedTime() * 1000) {
-                // 첫 번째 데이터 수신 시 -1에서 업데이트되어 있는 경우를 고려하여 조건 수정
-                if (lastPressurePercentage == -1) {
-                    // 첫 번째 데이터 수신 시에는 조건 판단을 건너뛰고 lastPressurePercentage만 업데이트
-                    dataManager.updatePressureData(currentPressurePercentage);
-                } else if (currentPressurePercentage > lastPressurePercentage && Math.abs(currentPressurePercentage - lastPressurePercentage) >= dataManager.getExpectedPressurePercentage()) {
-                    isWhConditionProcessing = true; // wh 판단 로직 실행 중임을 나타냄
-                    SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
-                    int whcount = sharedPreferences.getInt("whcountui", 0);
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putInt("whcountui", whcount + 1);
-                    editor.apply();
-                    ZipFileSaved(); // 조건 충족 시 수행할 작업
+            if (!isWhConditionProcessing && dataManager.checkForWaterHammer(pressurePercentage)) {
+                isWhConditionProcessing = true; // 수격 판단 로직 실행 중
+                // 필요한 액션 수행, 예: SharedPreferences 업데이트, 로깅, 파일 저장 등
+                sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+                int whcount = sharedPreferences.getInt("whcountui", 0) + 1;
+                sharedPreferences.edit().putInt("whcountui", whcount).apply();
+                Log.d(TAG, "수격 발생: 현재 수압 백분율 = " + pressurePercentage);
                     Log.d(TAG, "현재수압" + currentPressurePercentage + "이전수압" + lastPressurePercentage);
-                }
                 // 여기서 현재 압력 백분율과 시간을 항상 업데이트합니다.
                 dataManager.updatePressureData(currentPressurePercentage);
-            }else if (isWhConditionProcessing) {
+                ZipFileSaved(); // 조건 충족 시 수행할 작업
+            }else if (isWhConditionProcessing && dataManager.checkForWaterHammer(pressurePercentage)) {
+                dataManager.updatePressurecount(currentPressurePercentage); // lastPressurecount 업데이트
                 if (currentPressureRounded.compareTo(lastPressurecountRounded) > 0) {
-                    //Log.e(TAG, "이전 수압: " + lastPressurecountRounded + "현재 수압: " + currentPressureRounded);
-                    wh = 1; // 현재 수압이 이전 수압보다 높을 때 wh를 1로 설정
+                    //Log.e(TAG, "이전 수압: " + lastPressurecountRound ed + "현재 수압: " + currentPressureRounded);
+                    wh = 1; // 현재 수압이이전 수압보다 높을 때 wh를 1로 설정
                     dataManager.updatePressurecount(currentPressurePercentage); // lastPressurecount 업데이트
                 } else {
                     wh = 0;
+                    dataManager.updatePressurecount(currentPressurePercentage); // lastPressurecount 업데이트
                 }
             }
             dataManager.updatePressurecount(currentPressurePercentage); // lastPressurecount 업데이트
@@ -269,7 +286,7 @@ public class ReadThread extends Thread {
 
 
             String logEntry = String.format(
-                    "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d",
+                    "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d, %s",
                     timestamp, // 현재 시간 (년, 월, 일, 시, 분, 초)
                     ++localCounter,
                     pressurePercentage, // 수압
@@ -278,7 +295,8 @@ public class ReadThread extends Thread {
                     drive, // 드라이브 상태
                     stop, // 정지 상태
                     wh , // WH 상태
-                    blackout // 블랙아웃 상태
+                    blackout, // 블랙아웃 상태
+                    sensor
 
             );
             if (batteryPercentage <= 16 && blackout == 1) {
@@ -292,13 +310,42 @@ public class ReadThread extends Thread {
                 isSleep = false;
             }
             logEntries.append(logEntry + "\n");
+
+            // 로컬 카운터가 999에 도달했을 때의 처리
+            if (localCounter == 998 && isstop) {
+                // 정지 플래그가 설정되었을 때 마지막 로그 엔트리에 drive=0, stop=1 반영
+                stop = 1;
+                drive = 0;
+                // 마지막 로그 엔트리 수정
+                logEntry = String.format(
+                        "%s, %d, %.2f, %.2f, %d, %d, %d, %d, %d, %s",
+                        timestamp,
+                        ++localCounter,
+                        pressurePercentage,
+                        waterLevelPercentage,
+                        batteryPercentage,
+                        drive,
+                        stop,
+                        wh,
+                        blackout,
+                        sensor
+                );
+                // 마지막 로그 엔트리를 logEntries에 추가
+                logEntries.append(logEntry + "\n");
+            }
             //long currentTime = System.currentTimeMillis();
             if (localCounter >= 999) { // 1000개의 패킷이 처리되었는지 확인
+                if (isstop) {
+                    //Log.e(TAG, "멈춤플래그"+isstop);
+                    stop = 1;
+                    drive = 0;
+                }
+
                 if (logEntries.length() > 0) { // 로그 데이터가 있을 경우에만 저장
                     fileSaveThread.addData(logEntries.toString(), timestamp);
                     logEntries.setLength(0); // 로그 기록 초기화
 
-                    byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout);
+                    byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout, sensor);
                     // Context와 바이너리 데이터를 사용하여 TcpClient 인스턴스 생성
                     tcpClient = new TcpClient(context, decimalData );
                     tcpClient.execute(); // AsyncTask 실행하여 서버로 데이터 전송
@@ -352,11 +399,11 @@ public class ReadThread extends Thread {
         }
         return sb.toString().trim();
     }
-    public byte[] createDecimalData(String timestamp, double pressurePercentage, double waterLevelPercentage, int batteryPercentage, int drive, int stop, int wh, int blackout) {
+    public byte[] createDecimalData(String timestamp, double pressurePercentage, double waterLevelPercentage, int batteryPercentage, int drive, int stop, int wh, int blackout, String sensor) {
         // 데이터를 문자열 형태로 결합
-        String data = String.format("%s, %.2f, %.2f, %d, %d, %d, %d, %d",
+        String data = String.format("%s, %.2f, %.2f, %d, %d, %d, %d, %d, %s",
                 timestamp, pressurePercentage, waterLevelPercentage,
-                batteryPercentage, drive, stop, wh, blackout);
+                batteryPercentage, drive, stop, wh, blackout, sensor);
 
         // 문자열 데이터를 바이트 배열로 변환 (UTF-8 인코딩 사용)
         return data.getBytes(StandardCharsets.UTF_8);
@@ -383,17 +430,32 @@ public class ReadThread extends Thread {
         Log.d(TAG, "수격신호 수신");
         saveWHState(true);
         Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
-        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
         String directoryUriString = sharedPreferences.getString("directoryUri", "");
         String deviceNumber = sharedPreferences.getString("deviceNumber", "");
         long beforeMillis = sharedPreferences.getLong("beforeMillis", 0);
         long afterMillis = sharedPreferences.getLong("afterMillis", 0);
+        Log.e(TAG, "정상적인 수격시 이전, 이후 시간: "+ beforeMillis+" ~ "+afterMillis);
+        String selectedSensorType = sharedPreferences.getString("SelectedSensorType", "");
+        String sensor = "";
+        if (selectedSensorType.equals("5kg")){
+            sensor = "1";
+        } else if (selectedSensorType.equals("20kg")) {
+            sensor = "2";
+        }
+        else if (selectedSensorType.equals("30kg")) {
+            sensor = "3";
+        }else {
+            sensor = "4";
+        }
+
 
         // 이벤트 발생 후 대기할 시간 계산
         long delay = afterMillis;
 
         // Define the task to be run
-        zipFileSavedRunnable = () -> {
+        String finalSensor = sensor;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
             Uri directoryUri = Uri.parse(directoryUriString);
             List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
 
@@ -401,17 +463,20 @@ public class ReadThread extends Thread {
                 // eventTime을 기반으로 파일 이름 생성
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
                 String eventDateTime = sdf.format(eventTime);
-                String combinedFileName = deviceNumber + "-" + eventDateTime + ".txt";
-                new FileProcessingTask(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+                String combinedFileName = deviceNumber+"-"+ finalSensor +"-"+eventDateTime + ".txt";
+                Uri combinedFileUri = FileManager.combineTextFilesInRange(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
+
+                if (combinedFileUri != null) {
+                    List<Uri> fileUris = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
+                    new FileProcessingTask(context, fileUris, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+
+                }
             } else {
                 Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
             }
             isWhConditionProcessing = false;
             saveWHState(false);
-        };
-
-        // Post the defined task to be run after the specified delay
-        zipFileSavedHandler.postDelayed(zipFileSavedRunnable, delay);
+        }, delay);
     }
 
 
@@ -515,16 +580,20 @@ public class ReadThread extends Thread {
         saveWHState(false);
         Log.d(TAG, "ReadThread, FileSaveThread, and scheduler stopped");
     }
+    public void checkStop(){
+        isstop = true;
+        Log.e(TAG, "멈춤플래그"+isstop);
+    }
     // GPIO 상태 저장
     private void saveGPIOState(boolean is138Active, boolean is139Active) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean("GPIO_138_ACTIVE", is138Active);
         editor.putBoolean("GPIO_139_ACTIVE", is139Active);
         editor.apply();
     }
-    private void saveWHState(boolean is28Active) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+    public void saveWHState(boolean is28Active) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean("GPIO_28_ACTIVE", is28Active);
         editor.apply();

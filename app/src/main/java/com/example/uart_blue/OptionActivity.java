@@ -17,11 +17,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.preference.PreferenceManager;
 import android.provider.Settings;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.method.KeyListener;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -79,14 +82,42 @@ public class OptionActivity extends AppCompatActivity {
     ImageButton btShow;
     Button btstart, btstop, btwh;
     private boolean areButtonsVisible = true;
+    SharedPreferences sharedPreferences1;
+    SharedPreferences.OnSharedPreferenceChangeListener sharedPreferenceChangeListener;
+    double percentage;
+    String selectedTime;
+    EditText beforeTimesEditText, afterTimesEditText, secondHoldingEditText, WHHoldingEditText, PressColEditText, WLevelEditText;
+    Spinner timeSpinner, sensorTypeSpinner, PressSpinner, WLevelSpinner;
+    private boolean userSpinnerInteraction = false;
+
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
-    @SuppressLint({"RestrictedApi", "MissingInflatedId"})
+    @SuppressLint({"RestrictedApi", "MissingInflatedId", "WrongViewCast"})
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
         checkStoragePermission();
 
+        PressColEditText = findViewById(R.id.PressColEditText);
+        WLevelEditText = findViewById(R.id.WLevelColEditText);
+// 스피너에 대한 참조를 얻은 후
+        sensorTypeSpinner = findViewById(R.id.SensorTypeSpinner);
+        timeSpinner = findViewById(R.id.TimesSpinner);
+
+// 스피너에 터치 리스너를 설정하여 사용자의 상호작용을 감지
+        sensorTypeSpinner.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                userSpinnerInteraction = true;
+            }
+            return false; // 이벤트를 여기서 소비하지 않음
+        });
+
+        timeSpinner.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                userSpinnerInteraction = true;
+            }
+            return false; // 이벤트를 여기서 소비하지 않음
+        });
         btShow = findViewById(R.id.btshow);
         btstart = findViewById(R.id.btstart);
         btstop = findViewById(R.id.btstop);
@@ -117,8 +148,74 @@ public class OptionActivity extends AppCompatActivity {
         TPortEditText = findViewById(R.id.TPortEditText);
         ZPortEditText = findViewById(R.id.ZPortEditText);
 
+        sharedPreferences1 = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+
+        sharedPreferenceChangeListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+            @Override
+            public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+                if ("GPIO_138_ACTIVE".equals(key) || "GPIO_139_ACTIVE".equals(key)) {
+                    boolean isGpio138Active = sharedPreferences1.getBoolean("GPIO_138_ACTIVE", false);
+                    boolean isGpio139Active = sharedPreferences1.getBoolean("GPIO_139_ACTIVE", false);
+                    runOnUiThread(() -> {
+                        if (isGpio138Active) {
+                            SIPEditText.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 IP 수정은 불가능 합니다.");
+                            pressEditText.setEnabled(false);
+                            pressEditText.setError("운전중일 때 압력값 수정은 불가능 합니다.");
+                            TPortEditText.setEnabled(false);
+                            TPortEditText.setError("운전중일 때 포트 변경은 불가능 합니다.");
+                            ZPortEditText.setEnabled(false);
+                            ZPortEditText.setError("운전중일 때 포트 변경은 불가능 합니다.");
+                            beforeTimesEditText.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+                            WHHoldingEditText.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+                            secondHoldingEditText.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+                            afterTimesEditText.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+                            timeSpinner.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+                            sensorTypeSpinner.setEnabled(false);
+                            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+                            PressColEditText.setEnabled(false);
+                            WLevelEditText.setEnabled(false);
+                            PressSpinner.setEnabled(false);
+                            WLevelSpinner.setEnabled(false);
+                        } else if (isGpio139Active) {
+                            SIPEditText.setEnabled(true);
+                            SIPEditText.setError(null);
+                            pressEditText.setEnabled(true);
+                            pressEditText.setError(null);
+                            TPortEditText.setEnabled(true);
+                            TPortEditText.setError(null);
+                            ZPortEditText.setEnabled(true);
+                            ZPortEditText.setError(null);
+                            beforeTimesEditText.setEnabled(true);
+                            beforeTimesEditText.setError(null);
+                            WHHoldingEditText.setEnabled(true);
+                            WHHoldingEditText.setError(null);
+                            secondHoldingEditText.setEnabled(true);
+                            secondHoldingEditText.setError(null);
+                            afterTimesEditText.setEnabled(true);
+                            afterTimesEditText.setError(null);
+                            timeSpinner.setEnabled(true);
+                            sensorTypeSpinner.setEnabled(true);
+                            PressColEditText.setEnabled(true);
+                            WLevelEditText.setEnabled(true);
+                            PressSpinner.setEnabled(true);
+                            WLevelSpinner.setEnabled(true);
+                        }
+                    });
+                }
+            }
+        };
+
+        // SharedPreferences 변경 리스너 등록
+        sharedPreferences1.registerOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
+
         // Initialize the spinner
-        Spinner sensorTypeSpinner = findViewById(R.id.SensorTypeSpinner);
+        sensorTypeSpinner = findViewById(R.id.SensorTypeSpinner);
 
         // Create an ArrayAdapter using the string array and a default spinner layout
         ArrayAdapter<CharSequence> sensoradapter = ArrayAdapter.createFromResource(this,
@@ -135,10 +232,19 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 // An item was selected. You can retrieve the selected item using
+                if (userSpinnerInteraction) {
+                    // 사용자가 스피너를 터치하여 항목을 변경했을 때만 실행
+                    pressEditText.setText("");
+                    pressEditText.setError("압력값을 다시 입력하세요");
+                    setCorrectionRangeHint(); // 보정 범위 업데이트
+                    userSpinnerInteraction = false; // 플래그를 초기화
+                }
+
                 String selectedItem = parent.getItemAtPosition(position).toString();
                 updatePressureLimits(selectedItem);
                 // Update the global data manager
                 SensorDataManager.getInstance().setMaxPressure(maxPressure);
+
             }
 
             @Override
@@ -147,7 +253,7 @@ public class OptionActivity extends AppCompatActivity {
             }
         });
         // Initialize the spinner
-        Spinner timeSpinner = findViewById(R.id.TimesSpinner);
+        timeSpinner = findViewById(R.id.TimesSpinner);
 
         // Create an ArrayAdapter using the string array and a default spinner layout
         ArrayAdapter<CharSequence> timeadapter = ArrayAdapter.createFromResource(this,
@@ -163,8 +269,14 @@ public class OptionActivity extends AppCompatActivity {
         timeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (userSpinnerInteraction) {
+                    // 사용자가 스피너를 터치하여 항목을 변경했을 때만 실행
+                    pressEditText.setText("");
+                    pressEditText.setError("압력값을 다시 입력하세요");
+                    userSpinnerInteraction = false; // 플래그를 초기화
+                }
                 // An item was selected. You can retrieve the selected item using
-                String selectedTime = parent.getItemAtPosition(position).toString();
+                selectedTime = parent.getItemAtPosition(position).toString();
                 // Update the global data manager
                 SensorDataManager.getInstance().setSelectedTime(Integer.parseInt(selectedTime));
             }
@@ -183,8 +295,8 @@ public class OptionActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        EditText beforeTimesEditText = findViewById(R.id.BeforeTimesEditText);
-        EditText afterTimesEditText = findViewById(R.id.AfterTimesEditText);
+        beforeTimesEditText = findViewById(R.id.BeforeTimesEditText);
+        afterTimesEditText = findViewById(R.id.AfterTimesEditText);
         CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
         checkboxSwitchTest.setOnCheckedChangeListener((buttonView, isChecked) -> {
             // SharedPreferences에 체크박스 상태를 저장합니다.
@@ -201,9 +313,59 @@ public class OptionActivity extends AppCompatActivity {
             }
         });
 
+        PressSpinner = findViewById(R.id.PressSpinner);
+
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        ArrayAdapter<CharSequence> Pressadapter = ArrayAdapter.createFromResource(this,
+                R.array.pm, android.R.layout.simple_spinner_item);
+
+        // Specify the layout to use when the list of choices appears
+        Pressadapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        // Apply the adapter to the spinner
+        PressSpinner.setAdapter(Pressadapter);
+
+        // Set the spinner click listener
+        PressSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Another interface callback
+            }
+        });
+
+        WLevelSpinner = findViewById(R.id.WLevelSpinner);
+
+        // Create an ArrayAdapter using the string array and a default spinner layout
+        ArrayAdapter<CharSequence> WLeveladapter = ArrayAdapter.createFromResource(this,
+                R.array.pm, android.R.layout.simple_spinner_item);
+
+        // Specify the layout to use when the list of choices appears
+        WLeveladapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        // Apply the adapter to the spinner
+        WLevelSpinner.setAdapter(WLeveladapter);
+
+        // Set the spinner click listener
+        WLevelSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Another interface callback
+            }
+        });
+
         // 시간 입력받기 위한 EditText 추가
-        EditText secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
-        EditText WHHoldingEditText = findViewById(R.id.whHoldingEditText);
+        secondHoldingEditText = findViewById(R.id.SecondHoldingEditText);
+        WHHoldingEditText = findViewById(R.id.whHoldingEditText);
         setupButtons(); //터치로 동작을 제어하는 버튼 함수
 
         @SuppressLint({"MissingInflatedId", "LocalSuppress"}) EditText deviceNumberInput = findViewById(R.id.DeviceEditText); // 레이아웃에 해당 ID를 가진 EditText 추가 필요
@@ -235,19 +397,55 @@ public class OptionActivity extends AppCompatActivity {
         String serverIP = sharedPreferences.getString("ServerIP", "");
         String TPort = sharedPreferences.getString("TPort", "");
         String ZPort = sharedPreferences.getString("ZPort", "");
+        // 보정값 불러오기
+        float pressCorrection = sharedPreferences.getFloat("PressCorrection", 0);
+        String pressDirection = sharedPreferences.getString("PressDirection", "+");
+        float wLevelCorrection = sharedPreferences.getFloat("WLevelCorrection", 0);
+        String wLevelDirection = sharedPreferences.getString("WLevelDirection", "+");
+        Log.e(TAG, "pressDirection: "+pressDirection );
+        setCorrectionRangeHint();
+
+        // EditText에 보정값 설정
+        PressColEditText.setText(String.valueOf(pressCorrection));
+        WLevelEditText.setText(String.valueOf(wLevelCorrection));
+        ArrayAdapter<CharSequence> pressadapter = (ArrayAdapter<CharSequence>) PressSpinner.getAdapter();
+        int position = pressadapter.getPosition(pressDirection);
+        PressSpinner.setSelection(position, true);
+
+        ArrayAdapter<CharSequence> wleveladapter = (ArrayAdapter<CharSequence>) WLevelSpinner.getAdapter();
+        position = wleveladapter.getPosition(wLevelDirection);
+        WLevelSpinner.setSelection(position, true);
 
         SIPEditText.setText(serverIP);
         TPortEditText.setText(TPort);
         ZPortEditText.setText(ZPort);
 
+        pressEditText.setText(pressureValue);
+
+        // Spinner의 어댑터 설정
+        ArrayAdapter<CharSequence> sensorTypeAdapter = ArrayAdapter.createFromResource(this, R.array.sensor_types, android.R.layout.simple_spinner_item);
+        sensorTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sensorTypeSpinner.setAdapter(sensorTypeAdapter);
+
+        ArrayAdapter<CharSequence> timeAdapter = ArrayAdapter.createFromResource(this, R.array.times, android.R.layout.simple_spinner_item);
+        timeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        timeSpinner.setAdapter(timeAdapter);
+
+// 리스너 설정 전에 이전에 선택된 항목을 설정합니다.
+        if (!selectedSensorType.isEmpty()) {
+            int sensorTypePosition = sensorTypeAdapter.getPosition(selectedSensorType);
+            sensorTypeSpinner.setSelection(sensorTypePosition, false); // 리스너를 트리거하지 않음
+        }
+
+        if (!selectedTime.isEmpty()) {
+            int timePosition = timeAdapter.getPosition(selectedTime);
+            timeSpinner.setSelection(timePosition, false); // 리스너를 트리거하지 않음
+        }
         beforeTimesEditText.setText(String.valueOf(beforeSeconds));
         afterTimesEditText.setText(String.valueOf(afterMinutes));
         secondHoldingEditText.setText(String.valueOf(intervalHours));
         WHHoldingEditText.setText(String.valueOf(intervalDays));
 
-        sensorTypeSpinner.setSelection(sensoradapter.getPosition(selectedSensorType));
-        timeSpinner.setSelection(timeadapter.getPosition(selectedTime));
-        pressEditText.setText(pressureValue);
         // 패스워드 버튼 클릭 리스너 설정
         findViewById(R.id.passwordButton).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -317,6 +515,41 @@ public class OptionActivity extends AppCompatActivity {
                         .show();
             }
         });
+        pressEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // Not used
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Not used
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (!s.toString().isEmpty()) {
+                    double inputValue = Double.parseDouble(s.toString());
+                    double maxPressure = SensorDataManager.getInstance().getMaxPressure();
+                    if (inputValue < 0.1 || inputValue > maxPressure) {
+                        pressEditText.setError("값은 0.1kg과 " + maxPressure + "kg 사이여야 합니다.");
+                    } else {
+                        // Update the global data manager
+                        percentage = (inputValue / maxPressure) * 80;
+                        Log.d(TAG, "압력 입력값: "+inputValue + "센서 최대압력값: "+maxPressure+"퍼센트 계산값: "+percentage);
+                        SensorDataManager.getInstance().setExpectedPressurePercentage(percentage);
+                        pressEditText.setError(null);
+
+                        // SharedPreferences에 percentage 값을 저장
+                        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.putFloat("percentage", (float) percentage);
+                        editor.putFloat("maxPressure", (float) maxPressure);
+                        editor.apply(); // 변경 사항을 저장
+                    }
+                }
+            }
+        });
 
         // 저장 버튼 클릭 리스너
         buttonSave.setOnClickListener(new View.OnClickListener() {
@@ -337,7 +570,28 @@ public class OptionActivity extends AppCompatActivity {
                         Toast.makeText(OptionActivity.this, "일수는 1일부터 21일 사이로 설정해야 합니다.", Toast.LENGTH_SHORT).show();
                         return;
                     }
+                    float pressCorrection;
+                    float wLevelCorrection;
+                    // 입력된 보정값 파싱
+                    try {
+                        pressCorrection = Float.parseFloat(PressColEditText.getText().toString());
+                        wLevelCorrection = Float.parseFloat(WLevelEditText.getText().toString());
+                    } catch (NumberFormatException e) {
+                        Toast.makeText(OptionActivity.this, "잘못된 입력 형식입니다.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    // PressColEditText의 보정값 검증
+                    double maxRangePress = getSensorMaxPressure(sensorTypeSpinner.getSelectedItem().toString()) * 0.1;
+                    if (pressCorrection < 0 || pressCorrection > maxRangePress) {
+                        Toast.makeText(OptionActivity.this, "압력 보정값이 허용 범위를 벗어났습니다.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
 
+                    // WLevelEditText의 보정값 검증
+                    if (wLevelCorrection < 0 || wLevelCorrection > 10) {
+                        Toast.makeText(OptionActivity.this, "수위 보정값이 허용 범위를 벗어났습니다.", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("selectedStorage", selectedStorage);
                     editor.putBoolean(SWITCH_TEST_KEY, checkboxSwitchTest.isChecked()); // 체크박스의 현재 상태를 저장
@@ -359,6 +613,12 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putString("ServerIP", serverIP);
                     editor.putString("TPort", TPort);
                     editor.putString("ZPort", ZPort);
+
+                    // 보정값 저장
+                    editor.putFloat("PressCorrection", pressCorrection);
+                    editor.putString("PressDirection", PressSpinner.getSelectedItem().toString());
+                    editor.putFloat("WLevelCorrection", wLevelCorrection);
+                    editor.putString("WLevelDirection", WLevelSpinner.getSelectedItem().toString());
                     editor.apply();
 
                     // MainActivity로 이동
@@ -401,38 +661,14 @@ public class OptionActivity extends AppCompatActivity {
                 startActivityForResult(intent, REQUEST_DIRECTORY_PICKER);
             }
         });
-        pressEditText.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                // Not used
-            }
 
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                // Not used
-            }
+}
 
-            @Override
-            public void afterTextChanged(Editable s) {
-                if (!s.toString().isEmpty()) {
-                    double inputValue = Double.parseDouble(s.toString());
-                    double maxPressure = SensorDataManager.getInstance().getMaxPressure();
-                    if (inputValue < 0.1 || inputValue > maxPressure) {
-                        pressEditText.setError("값은 0.1kg과 " + maxPressure + "kg 사이여야 합니다.");
-                    } else {
-                        // Update the global data manager
-                        double percentage = (inputValue / maxPressure) * 80;
-                        SensorDataManager.getInstance().setExpectedPressurePercentage(percentage);
-                        pressEditText.setError(null);
-                    }
-                }
-            }
-        });
-    }
 
     private void updatePressureLimits(String sensorType) {
         int sensorMaxKg = Integer.parseInt(sensorType.replace("kg", ""));
         maxPressure = sensorMaxKg * 0.8; // Set to 80% of the sensor's maximum capacity
+        Log.d(TAG, "센서값: "+ maxPressure);
         // Optionally, update EditText hint or other UI elements to show the limit
         pressEditText.setHint("Enter value (0.1 - " + maxPressure + " kg)");
         pressEditText.setTextSize(10);
@@ -466,17 +702,32 @@ public class OptionActivity extends AppCompatActivity {
     }
     private void ZipFileSaved(){
         Log.d(TAG, "수격신호 수신");
-        Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
-        intent.putExtra("GPIO_28_ACTIVE", true);
-        this.sendBroadcast(intent);
+        saveWHState(true);
         Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
         SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
         String directoryUriString = sharedPreferences.getString("directoryUri", "");
         String deviceNumber = sharedPreferences.getString("deviceNumber", "");
-        long beforeMillis = 1000;
-        long afterMillis = 1000;
+        String selectedSensorType = sharedPreferences.getString("SelectedSensorType", "");
+        String sensor = "";
+        if (selectedSensorType.equals("5kg")){
+            sensor = "1";
+        } else if (selectedSensorType.equals("20kg")) {
+            sensor = "2";
+        }
+        else if (selectedSensorType.equals("30kg")) {
+            sensor = "3";
+        }else {
+            sensor = "4";
+        }
+        int whcount = sharedPreferences.getInt("whcountui", 0);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putInt("whcountui", whcount + 1);
+        editor.apply();
+        long beforeMillis = 1000 * 10;
+        long afterMillis = 1000 * 60;
         // 이벤트 발생 후 대기할 시간 계산
-        long delay = 1000;
+        long delay = afterMillis;
+        String finalSensor = sensor;
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             Uri directoryUri = Uri.parse(directoryUriString);
             List<Uri> filesInRange = FileManager.findFilesInRange(this, directoryUri, eventTime, beforeMillis, afterMillis);
@@ -485,7 +736,7 @@ public class OptionActivity extends AppCompatActivity {
                 // eventTime을 기반으로 파일 이름 생성
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
                 String eventDateTime = sdf.format(eventTime);
-                String combinedFileName = deviceNumber+"-"+eventDateTime + ".txt";
+                String combinedFileName = deviceNumber+"-"+ finalSensor +"-"+eventDateTime + ".txt";
                 Uri combinedFileUri = FileManager.combineTextFilesInRange(this, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
 
                 if (combinedFileUri != null) {
@@ -496,6 +747,7 @@ public class OptionActivity extends AppCompatActivity {
             } else {
                 Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
             }
+            saveWHState(false);
         }, delay);
     }
     private List<String> parseStorageInfo(String storageInfo) {
@@ -560,6 +812,39 @@ public class OptionActivity extends AppCompatActivity {
             }
         }
     }
+
+    private void setCorrectionRangeHint() {
+        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        String selectedSensorType = sensorTypeSpinner.getSelectedItem().toString();
+
+        // 선택된 센서 유형에 따른 최대 값
+        double sensorMaxValue = getSensorMaxPressure(selectedSensorType);
+
+        // PressColEditText에 대한 0% ~ 10% 보정 가능 범위 계산 및 표시
+        double maxRangePress = sensorMaxValue * 0.1; // 최대 범위는 최대값의 10%
+        String hintPress = String.format("보정 범위: 0.00%% ~ %.2f%%", maxRangePress);
+        PressColEditText.setError(hintPress);
+
+        // WLevelEditText에 대한 0 ~ 10% 보정 가능 범위 표시
+        String hintWLevel = "보정 범위: 0% ~ 10%";
+        WLevelEditText.setError(hintWLevel);
+    }
+
+
+    private double getSensorMaxPressure(String selectedSensorType) {
+        // 센서 유형에 따른 최대 수압 값 반환
+        switch (selectedSensorType) {
+            case "5kg":
+                return 5.0;
+            case "20kg":
+                return 20.0;
+            case "30kg":
+                return 30.0;
+            default:
+                return 100.0;// 예시, 실제 센서 유형에 맞춰 조정 필요
+        }
+    }
+
     protected void onResume() {
         super.onResume();
 
@@ -573,10 +858,77 @@ public class OptionActivity extends AppCompatActivity {
         } else {
             gpioActivity.disableGpioInput();
         }
-
+        setCorrectionRangeHint();
         // 체크박스 UI를 저장된 상태와 일치시킵니다.
         CheckBox checkboxSwitchTest = findViewById(R.id.checkboxSwitchTest);
         checkboxSwitchTest.setChecked(isSwitchChecked);
+
+        boolean isGpio138Active = sharedPreferences1.getBoolean("GPIO_138_ACTIVE", false);
+        boolean isGpio139Active = sharedPreferences1.getBoolean("GPIO_139_ACTIVE", false);
+
+        if (isGpio138Active) {
+            SIPEditText.setEnabled(false);
+            SIPEditText.setError("운전중일 때 IP 수정은 불가능 합니다.");
+            pressEditText.setEnabled(false);
+            pressEditText.setError("운전중일 때 압력값 수정은 불가능 합니다.");
+            TPortEditText.setEnabled(false);
+            TPortEditText.setError("운전중일 때 포트 변경은 불가능 합니다.");
+            ZPortEditText.setEnabled(false);
+            ZPortEditText.setError("운전중일 때 포트 변경은 불가능 합니다.");
+            beforeTimesEditText.setEnabled(false);
+            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+            WHHoldingEditText.setEnabled(false);
+            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+            secondHoldingEditText.setEnabled(false);
+            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+            afterTimesEditText.setEnabled(false);
+            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+            timeSpinner.setEnabled(false);
+            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+            sensorTypeSpinner.setEnabled(false);
+            SIPEditText.setError("운전중일 때 수정은 불가능 합니다.");
+            PressColEditText.setEnabled(false);
+            WLevelEditText.setEnabled(false);
+            PressSpinner.setEnabled(false);
+            WLevelSpinner.setEnabled(false);
+        } else if (isGpio139Active) {
+            SIPEditText.setEnabled(true);
+            SIPEditText.setError(null);
+            pressEditText.setEnabled(true);
+            pressEditText.setError(null);
+            TPortEditText.setEnabled(true);
+            TPortEditText.setError(null);
+            ZPortEditText.setEnabled(true);
+            ZPortEditText.setError(null);
+            beforeTimesEditText.setEnabled(true);
+            beforeTimesEditText.setError(null);
+            WHHoldingEditText.setEnabled(true);
+            WHHoldingEditText.setError(null);
+            secondHoldingEditText.setEnabled(true);
+            secondHoldingEditText.setError(null);
+            afterTimesEditText.setEnabled(true);
+            afterTimesEditText.setError(null);
+            timeSpinner.setEnabled(true);
+            sensorTypeSpinner.setEnabled(true);
+            PressColEditText.setEnabled(true);
+            WLevelEditText.setEnabled(true);
+            PressSpinner.setEnabled(true);
+            WLevelSpinner.setEnabled(true);
+        }
+
+        }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 리스너 등록 해제
+        sharedPreferences1.unregisterOnSharedPreferenceChangeListener(sharedPreferenceChangeListener);
+    }
+    public void saveWHState(boolean is28Active) {
+        SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean("GPIO_28_ACTIVE", is28Active);
+        editor.apply();
     }
 }
 

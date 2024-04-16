@@ -67,6 +67,8 @@ public class TcpClient extends AsyncTask<Void, Void, Boolean> {
         int retryInterval = 10000; // 재시도 간격 10초
         int maxRetries = Integer.MAX_VALUE; // 최대 재시도 횟수 (무한대)
 
+        int fileOffset = 0; // 파일 전송 위치 추적을 위한 변수
+
         for (int retryCount = 0; retryCount < maxRetries; retryCount++) {
             try {
                 Socket socket = new Socket();
@@ -77,10 +79,14 @@ public class TcpClient extends AsyncTask<Void, Void, Boolean> {
                             outputStream.write((fileName + "\n").getBytes());
                             outputStream.flush();
 
+                            // 파일의 현재 위치로 이동
+                            fileInputStream.skip(fileOffset);
+
                             byte[] buffer = new byte[4096];
                             int length;
                             while ((length = fileInputStream.read(buffer)) > 0) {
                                 outputStream.write(buffer, 0, length);
+                                fileOffset += length; // 전송한 만큼 파일 위치 업데이트
                             }
                             outputStream.flush();
                         }

@@ -20,4 +20,9 @@
         <item>9</item>
         <item>10</item>
     </string-array>
+
+    <string-array name="pm">
+        <item>+</item>
+        <item>-</item>
+    </string-array>
 </resources>

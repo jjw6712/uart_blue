@@ -1,5 +1,7 @@
 package com.example.uart_blue;
 
+import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
+
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -9,11 +11,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
+import androidx.work.ExistingPeriodicWorkPolicy;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
@@ -78,11 +83,20 @@ public class SerialService extends Service {
 
 
     private void startSerialCommunication() {
+        SharedPreferences sharedPreferences = getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
+        double openper = sharedPreferences.getFloat("percentage", 0);
+        Log.d(TAG, "다시실행 퍼센트: "+openper);
+        SensorDataManager.getInstance().setExpectedPressurePercentage(openper);
+        String selectedTime = sharedPreferences.getString("SelectedTime", "");
+        SensorDataManager.getInstance().setSelectedTime(Integer.parseInt(selectedTime));
+        double maxPressure = sharedPreferences.getFloat("maxPressure", 0);
+        SensorDataManager.getInstance().setMaxPressure(maxPressure);
         // readThread를 시작하는 로직...
         // ReadThread와 FileSaveThread를 다시 시작합니다.
         startReadingData();
         // 데이터를 송신합니다.
         if (readThread != null) {
+            SensorDataManager.getInstance().updatePressureData(-1);
             // 시작 신호: STX = 0x02, CMD = 0x10, ETX = 0x03
             byte[] startSignal = {0x02, 0x10, 0x03};
             // 체크섬 계산
@@ -109,16 +123,16 @@ public class SerialService extends Service {
             byte[] dataToSend = new byte[startSignal.length + 1];
             System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
             dataToSend[dataToSend.length - 1] = checksum;
-            // 데이터 전송
-            readThread.sendDataToSerialPort(dataToSend);
-            // 시리얼 포트를 그대로 두고, 스레드를 정지합니다.
-            readThread.stopThreads();
+            readThread.checkStop();
+            // 딜레이를 주고 스레드 정지 (예: 1000ms = 1초 딜레이)
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                // 데이터 전송
+                readThread.sendDataToSerialPort(dataToSend);
+                readThread.stopThreads();
+                // 앱에서 스케줄된 모든 작업을 취소
+                WorkManager.getInstance(getApplicationContext()).cancelAllWorkByTag("deleteOldFiles");
+            }, 1000); // 딜레이 시간 설정
         }
-        // 앱에서 스케줄된 모든 작업을 취소
-        WorkManager.getInstance(getApplicationContext()).cancelAllWork();
-        /*if(readThread != null){
-            readThread = null;
-        }*/
     }
     public void startReadingData() {
         initializeSerialPort();
@@ -186,12 +200,22 @@ public class SerialService extends Service {
         PeriodicWorkRequest oldFilesDeletionRequest = new PeriodicWorkRequest.Builder(OldFilesDeletionWorker.class, 15, TimeUnit.MINUTES)
                 .addTag("deleteOldFiles")
                 .build();
-        WorkManager.getInstance(getApplicationContext()).enqueue(oldFilesDeletionRequest);
+        WorkManager.getInstance(getApplicationContext()).enqueueUniquePeriodicWork(
+                "uniqueOldFiles",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                oldFilesDeletionRequest
+        );
         SharedPreferences sharedPreferences = this.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
         int days = sharedPreferences.getInt("intervalDays", 0);
         PeriodicWorkRequest zipFilesDeletionRequest = new PeriodicWorkRequest.Builder(ZipFilesDeletionWorker.class, days, TimeUnit.DAYS)
                 .addTag("deleteZipFiles")
                 .build();
-        WorkManager.getInstance(getApplicationContext()).enqueue(zipFilesDeletionRequest);
+
+        // `enqueueUniquePeriodicWork`를 사용하여 고유 작업 스케줄링, 이미 존재하는 작업이 있으면 교체
+        WorkManager.getInstance(getApplicationContext()).enqueueUniquePeriodicWork(
+                "uniqueZipFilesDeletion",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                zipFilesDeletionRequest
+        );
     }
 }

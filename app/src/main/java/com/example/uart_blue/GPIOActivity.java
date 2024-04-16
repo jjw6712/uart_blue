@@ -140,17 +140,35 @@ public class GPIOActivity {
     }
     public void ZipFileSaved() {
         Log.d(TAG, "수격신호 수신");
+        saveWHState(true);
         Date eventTime = new Date(); // 현재 시간을 수격이 발생한 시간으로 가정
         SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
         String directoryUriString = sharedPreferences.getString("directoryUri", "");
         String deviceNumber = sharedPreferences.getString("deviceNumber", "");
-        long beforeMillis = 1000;
-        long afterMillis = 1000;
+        int whcount = sharedPreferences.getInt("whcountui", 0);
+        String selectedSensorType = sharedPreferences.getString("SelectedSensorType", "");
+        String sensor = "";
+        if (selectedSensorType.equals("5kg")){
+            sensor = "1";
+        } else if (selectedSensorType.equals("20kg")) {
+            sensor = "2";
+        }
+        else if (selectedSensorType.equals("30kg")) {
+            sensor = "3";
+        }else {
+            sensor = "4";
+        }
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putInt("whcountui", whcount + 1);
+        editor.apply();
+        long beforeMillis = 1000 * 10;
+        long afterMillis = 1000 * 60;
         // 이벤트 발생 후 대기할 시간 계산
-        long delay = 1000;
+        long delay = afterMillis;
 
         // Define the task to be run
-        zipFileSavedRunnable = () -> {
+        String finalSensor = sensor;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
             Uri directoryUri = Uri.parse(directoryUriString);
             List<Uri> filesInRange = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
 
@@ -158,14 +176,24 @@ public class GPIOActivity {
                 // eventTime을 기반으로 파일 이름 생성
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm", Locale.getDefault());
                 String eventDateTime = sdf.format(eventTime);
-                String combinedFileName = deviceNumber + "-" + eventDateTime + ".txt";
-                new FileProcessingTask(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+                String combinedFileName = deviceNumber+"-"+ finalSensor +"-"+eventDateTime + ".txt";
+                Uri combinedFileUri = FileManager.combineTextFilesInRange(context, filesInRange, combinedFileName, eventTime, beforeMillis, afterMillis);
+
+                if (combinedFileUri != null) {
+                    List<Uri> fileUris = FileManager.findFilesInRange(context, directoryUri, eventTime, beforeMillis, afterMillis);
+                    new FileProcessingTask(context, fileUris, combinedFileName, eventTime, beforeMillis, afterMillis, directoryUri).execute();
+
+                }
             } else {
                 Log.d(TAG, "지정된 시간 범위 내에서 일치하는 파일이 없습니다.");
             }
-        };
-
-        // Post the defined task to be run after the specified delay
-        zipFileSavedHandler.postDelayed(zipFileSavedRunnable, delay);
+            saveWHState(false);
+        }, delay);
+    }
+    public void saveWHState(boolean is28Active) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean("GPIO_28_ACTIVE", is28Active);
+        editor.apply();
     }
     }

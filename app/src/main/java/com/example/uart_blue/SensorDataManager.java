@@ -1,5 +1,9 @@
 package com.example.uart_blue;
 
+import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
+
+import android.util.Log;
+
 public class SensorDataManager {
     private static SensorDataManager instance;
 
@@ -35,6 +39,7 @@ public class SensorDataManager {
     public synchronized void setExpectedPressurePercentage(double percentage) {
         this.expectedPressurePercentage = percentage;
     }
+
 
     public synchronized double getExpectedPressurePercentage() {
         return expectedPressurePercentage;
@@ -77,5 +82,27 @@ public class SensorDataManager {
     public synchronized long getLastPressureTime() {
         return lastPressureTime;
     }
+
+    public synchronized boolean checkForWaterHammer(double currentPressurePercentage) {
+        long currentTime = System.currentTimeMillis();
+        // 설정된 시간이 지났는지 확인
+        if ((lastPressureTime == -1) || (currentTime - lastPressureTime >= selectedTime * 1000)) {
+            double pressureChangePercentage = (currentPressurePercentage - lastPressurePercentage) / lastPressurePercentage * 100;
+            Log.e(TAG, "pressureChangePercentage: "+pressureChangePercentage+"=  "+"("+currentPressurePercentage+"-"+lastPressurePercentage+")"+"/"+lastPressurePercentage+"* 100"+" 계산된 압력: "+expectedPressurePercentage);
+
+            // 마지막 압력 백분율과 시간 업데이트는 조건 판단 전에 수행
+            lastPressurePercentage = currentPressurePercentage;
+            lastPressureTime = currentTime;
+
+            // 설정된 압력 변화량을 초과했는지 확인
+            if (pressureChangePercentage >= expectedPressurePercentage) {
+                Log.e(TAG, "checkForWaterHammer: "+pressureChangePercentage+" >= "+expectedPressurePercentage);
+                // 수격 조건 충족
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
 

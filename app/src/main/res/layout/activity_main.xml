@@ -55,7 +55,67 @@
                     android:layout_marginLeft="8dp"
                     android:layout_toRightOf="@id/textViewWHCounter"
                     android:textSize="20dp"
-                    android:text="수격 카운트" />
+                    android:text="0" />
+
+                <TextView
+                    android:id="@+id/textViewPress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="30dp"
+                    android:text="Press"
+                    android:layout_marginStart="280dp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/textViewPressValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/textViewPress"
+                    android:layout_marginTop="8dp"
+                    android:textStyle="bold"
+                    android:textSize="20dp"
+                    android:layout_marginStart="300dp"
+                    android:text="00.00 Kg/cm²" />
+                <TextView
+                    android:id="@+id/textViewPressColValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/textViewPress"
+                    android:layout_marginTop="8dp"
+                    android:textStyle="bold"
+                    android:textSize="20dp"
+                    android:layout_marginStart="450dp"
+                    android:text="+ 10" />
+
+                <TextView
+                    android:id="@+id/textViewW.Level"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="30dp"
+                    android:text="W.Level"
+                    android:layout_marginStart="580dp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/textViewW.LevelValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/textViewPress"
+                    android:layout_marginTop="8dp"
+                    android:textStyle="bold"
+                    android:textSize="20dp"
+                    android:layout_marginStart="600dp"
+                    android:text="00.00 %" />
+                <TextView
+                    android:id="@+id/textViewWLevelColValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@id/textViewPress"
+                    android:layout_marginTop="8dp"
+                    android:textStyle="bold"
+                    android:textSize="20dp"
+                    android:layout_marginStart="700dp"
+                    android:text="+ 10" />
 
                 <Button
                 android:id="@+id/buttonResetWHCounter"
