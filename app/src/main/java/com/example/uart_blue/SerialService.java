@@ -24,13 +24,17 @@ import androidx.work.WorkManager;
 
 import com.example.uart_blue.FileManager.OldFilesDeletionWorker;
 import com.example.uart_blue.FileManager.ZipFilesDeletionWorker;
+import com.example.uart_blue.Network.TcpClient;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 public class SerialService extends Service {
     private ReadThread readThread;
+    TcpClient tcpClient;
     private static final String CHANNEL_ID = "ForegroundServiceChannel";
 
     @Override
@@ -124,14 +128,18 @@ public class SerialService extends Service {
             System.arraycopy(startSignal, 0, dataToSend, 0, startSignal.length);
             dataToSend[dataToSend.length - 1] = checksum;
             readThread.checkStop();
+
             // 딜레이를 주고 스레드 정지 (예: 1000ms = 1초 딜레이)
             new Handler(Looper.getMainLooper()).postDelayed(() -> {
                 // 데이터 전송
                 readThread.sendDataToSerialPort(dataToSend);
                 readThread.stopThreads();
+
                 // 앱에서 스케줄된 모든 작업을 취소
                 WorkManager.getInstance(getApplicationContext()).cancelAllWorkByTag("deleteOldFiles");
             }, 1000); // 딜레이 시간 설정
+
+
         }
     }
     public void startReadingData() {

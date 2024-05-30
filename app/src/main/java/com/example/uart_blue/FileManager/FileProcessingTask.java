@@ -3,8 +3,13 @@ package com.example.uart_blue.FileManager;
 import static android.content.Context.MODE_PRIVATE;
 
 import android.annotation.SuppressLint;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.util.Log;
@@ -23,6 +28,8 @@ public class FileProcessingTask extends AsyncTask<Void, Void, Uri> {
     private Date eventTime;
     private long beforeMillis, afterMillis;
     private Uri directoryUri;
+    private BroadcastReceiver networkStateReceiver;
+    TcpClient tcpClient;
 
     public FileProcessingTask(Context context, List<Uri> fileUris, String combinedFileName, Date eventTime, long beforeMillis, long afterMillis, Uri directoryUri) {
         this.context = context;
@@ -39,45 +46,68 @@ public class FileProcessingTask extends AsyncTask<Void, Void, Uri> {
     protected Uri doInBackground(Void... voids) {
         Uri combinedFileUri = FileManager.combineTextFilesInRange(context, fileUris, combinedFileName, eventTime, beforeMillis, afterMillis);
         if (combinedFileUri != null) {
-            String zipFileName = combinedFileName.replace(".txt", ".zip"); // .txt를 .zip으로 변경
+            String zipFileName = combinedFileName.replace(".txt", ".zip");
             Uri outputZipUri = FileManager.createOutputZipUri(context, directoryUri, zipFileName);
             if (outputZipUri != null) {
-                FileManager.compressFile(context, combinedFileUri, outputZipUri); // 여기서 combinedFileUri는 .txt 파일을 가리킴
-                // 임시 .txt 파일 삭제
+                FileManager.compressFile(context, combinedFileUri, outputZipUri);
                 new File(combinedFileUri.getPath()).delete();
-                // 네트워크 연결 정보를 가져옵니다.
-                SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", MODE_PRIVATE);
-                String serverIP = sharedPreferences.getString("ServerIP", "");
-                String ZportStr = sharedPreferences.getString("ZPort", "");
-                String TPortStr = sharedPreferences.getString("TPort", "");
-                int Zport = ZportStr.isEmpty() ? -1 : Integer.parseInt(ZportStr);
-                int TPort = TPortStr.isEmpty() ? -1 : Integer.parseInt(TPortStr);
-
-
-                // 네트워크 연결 정보가 유효한 경우에만 TcpClient를 통해 파일 전송을 시도합니다.
-                if (!serverIP.isEmpty() || ZportStr.isEmpty()||TPortStr.isEmpty()) {
-                    new TcpClient(outputZipUri, context, true, zipFileName).execute();
-                    Log.d(TAG, "서버로 압축파일 전송!!!!!!");
-                } else {
-                    // 네트워크 연결 정보가 유효하지 않은 경우, 로컬에서의 처리를 로그로 남깁니다.
-                    Log.e(TAG, "네트워크 정보가 유효하지 않습니다. 로컬에서 파일 처리를 완료합니다.");
-                }
-
                 return outputZipUri;
             }
         }
         return null;
     }
 
-
     @Override
-    protected void onPostExecute(Uri result) {
-        super.onPostExecute(result);
-        if (result != null) {
-            Log.d("FileManager", "File processing completed: " + result.toString());
-            // 여기서 결과 처리를 진행하십시오 (예: UI 업데이트).
+    protected void onPostExecute(Uri outputZipUri) {
+        if (outputZipUri != null) {
+            Log.d(TAG, "ZIP 파일이 성공적으로 생성되었습니다: " + outputZipUri.getPath());
+            // ZIP 파일이 생성된 후 네트워크 상태 브로드캐스트 수신자 등록
+            registerNetworkStateReceiver(outputZipUri);
+            // TCP 클라이언트 실행하여 네트워크 상태 체크
+            executeTcpClient(outputZipUri);
         } else {
-            Log.e("FileManager", "File processing failed.");
+            Log.e(TAG, "Failed to create or compress the file.");
         }
     }
+
+    private void registerNetworkStateReceiver(Uri outputZipUri) {
+        networkStateReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String networkState = intent.getStringExtra("networkState");
+                if ("연결됨".equals(networkState)) {
+                    sendFileToServer(outputZipUri);
+                } else {
+                    Log.e(TAG, "Unable to connect to server. ZIP file saved locally.");
+                }
+                context.unregisterReceiver(networkStateReceiver); // Unregister the receiver once done
+            }
+        };
+        IntentFilter filter = new IntentFilter("com.example.uart_blue.UPDATE_NETWORK_STATE");
+        context.registerReceiver(networkStateReceiver, filter);
+    }
+
+    private void executeTcpClient(Uri outputZipUri) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("MySharedPrefs", Context.MODE_PRIVATE);
+        String serverIP = sharedPreferences.getString("ServerIP", "");
+        String ZportStr = sharedPreferences.getString("ZPort", "");
+        String TPortStr = sharedPreferences.getString("TPort", "");
+
+        if (!serverIP.isEmpty() && !ZportStr.isEmpty() && !TPortStr.isEmpty()) {
+            String zipFileName = combinedFileName.replace(".txt", ".zip");
+            tcpClient = new TcpClient(outputZipUri, context, true, zipFileName);
+            tcpClient.startConnection();
+
+        } else {
+            Log.e(TAG, "Network information is invalid. File processing completed locally.");
+        }
+    }
+
+    private void sendFileToServer(Uri outputZipUri) {
+        // TCP 클라이언트를 통해 네트워크 상태를 이미 확인했으므로, 직접 서버로 전송
+        Log.d(TAG, "Sending file to server: " + outputZipUri.getPath());
+        tcpClient = new TcpClient(outputZipUri, context, true, combinedFileName.replace(".txt", ".zip"));
+        tcpClient.startConnection();
+    }
 }
+

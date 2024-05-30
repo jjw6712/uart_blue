@@ -89,6 +89,7 @@ public class OptionActivity extends AppCompatActivity {
     EditText beforeTimesEditText, afterTimesEditText, secondHoldingEditText, WHHoldingEditText, PressColEditText, WLevelEditText;
     Spinner timeSpinner, sensorTypeSpinner, PressSpinner, WLevelSpinner;
     private boolean userSpinnerInteraction = false;
+    private EditText etMinvar, etMaxvar;
 
     // 디바이스 번호 입력 필드 참조 (EditText 추가 필요)
     @SuppressLint({"RestrictedApi", "MissingInflatedId", "WrongViewCast"})
@@ -97,6 +98,9 @@ public class OptionActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_option);
         checkStoragePermission();
+
+        etMinvar = findViewById(R.id.minValueEditText);
+        etMaxvar = findViewById(R.id.maxValueEditText);
 
         PressColEditText = findViewById(R.id.PressColEditText);
         WLevelEditText = findViewById(R.id.WLevelColEditText);
@@ -403,6 +407,11 @@ public class OptionActivity extends AppCompatActivity {
         float wLevelCorrection = sharedPreferences.getFloat("WLevelCorrection", 0);
         String wLevelDirection = sharedPreferences.getString("WLevelDirection", "+");
         Log.e(TAG, "pressDirection: "+pressDirection );
+
+        String Minvar = sharedPreferences.getString("Minvar", "");
+        String Maxvar = sharedPreferences.getString("Maxvar", "");
+        etMinvar.setText(Minvar);
+        etMaxvar.setText(Maxvar);
         setCorrectionRangeHint();
 
         // EditText에 보정값 설정
@@ -417,6 +426,7 @@ public class OptionActivity extends AppCompatActivity {
         WLevelSpinner.setSelection(position, true);
 
         SIPEditText.setText(serverIP);
+        Log.e(TAG, "아이피"+serverIP);
         TPortEditText.setText(TPort);
         ZPortEditText.setText(ZPort);
 
@@ -556,7 +566,7 @@ public class OptionActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 try {
-                    String serverIP = String.valueOf(SIPEditText.getText());
+                    String newIP = SIPEditText.getText().toString();
                     String TPort = String.valueOf(TPortEditText.getText());
                     String ZPort = String.valueOf(ZPortEditText.getText());
 
@@ -596,6 +606,7 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putString("selectedStorage", selectedStorage);
                     editor.putBoolean(SWITCH_TEST_KEY, checkboxSwitchTest.isChecked()); // 체크박스의 현재 상태를 저장
 
+
                     int beforeSeconds = Integer.parseInt(beforeTimesEditText.getText().toString()); // 초 단위
                     int afterMinutes = Integer.parseInt(afterTimesEditText.getText().toString()); // 분 단위
                     // 밀리초 단위로 변환
@@ -610,7 +621,8 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putString("SelectedSensorType", sensorTypeSpinner.getSelectedItem().toString());
                     editor.putString("SelectedTime", timeSpinner.getSelectedItem().toString());
                     editor.putString("PressureValue", pressEditText.getText().toString());
-                    editor.putString("ServerIP", serverIP);
+                    editor.remove("ServerIP");  // 기존 값 삭제
+                    editor.putString("ServerIP", newIP);  // 새로운 값 저장
                     editor.putString("TPort", TPort);
                     editor.putString("ZPort", ZPort);
 
@@ -619,6 +631,9 @@ public class OptionActivity extends AppCompatActivity {
                     editor.putString("PressDirection", PressSpinner.getSelectedItem().toString());
                     editor.putFloat("WLevelCorrection", wLevelCorrection);
                     editor.putString("WLevelDirection", WLevelSpinner.getSelectedItem().toString());
+
+                    editor.putString("Minvar", etMinvar.getText().toString());
+                    editor.putString("Maxvar", etMaxvar.getText().toString());
                     editor.apply();
 
                     // MainActivity로 이동

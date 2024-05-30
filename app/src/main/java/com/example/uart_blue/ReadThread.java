@@ -2,6 +2,8 @@ package com.example.uart_blue;
 
 import static android.content.Context.MODE_PRIVATE;
 
+import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
+
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -39,7 +41,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -348,7 +352,8 @@ public class ReadThread extends Thread {
                     byte[] decimalData  = createDecimalData(timestamp, pressurePercentage, waterLevelPercentage, batteryPercentage, drive, stop, wh, blackout, sensor);
                     // Context와 바이너리 데이터를 사용하여 TcpClient 인스턴스 생성
                     tcpClient = new TcpClient(context, decimalData );
-                    tcpClient.execute(); // AsyncTask 실행하여 서버로 데이터 전송
+                    tcpClient.startConnection();
+                    // AsyncTask 실행하여 서버로 데이터 전송
                     // 패킷 처리가 성공했을 때 Broadcast Intent 생성 및 전송
                     Intent intent = new Intent("com.example.uart_blue.ACTION_UPDATE_UI");
                     intent.putExtra("wh", whcount);
@@ -532,6 +537,10 @@ public class ReadThread extends Thread {
                 mSerialPort = null;
                 isSerialPortOpen = false; // 시리얼 포트 닫힘
             }
+            if(tcpClient != null){
+                tcpClient.stopConnection();
+                tcpClient = null;
+            }
         } catch (IOException e) {
             Log.e(TAG, "Error closing resources: " + e.getMessage());
         }
@@ -573,9 +582,8 @@ public class ReadThread extends Thread {
         if (!scheduler.isShutdown()) {
             scheduler.shutdownNow();
         }
-        if (tcpClient != null){
-            tcpClient = null;
-        }
+
+
         saveGPIOState(false, true);
         saveWHState(false);
         Log.d(TAG, "ReadThread, FileSaveThread, and scheduler stopped");
