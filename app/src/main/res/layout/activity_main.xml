@@ -402,7 +402,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@id/lastcardview"
-        android:text="Ver 1.0"
+        android:text="Ver 2.0"
         android:textStyle="bold"
         android:textSize="50dp"
         android:layout_marginStart="1100dp">
